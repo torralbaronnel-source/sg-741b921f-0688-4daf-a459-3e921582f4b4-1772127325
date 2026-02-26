@@ -5,6 +5,8 @@ export interface Product {
   stock: number;
   category: string;
   emoji: string;
+  taxRate?: number;
+  discount?: number;
 }
 
 export interface CartItem extends Product {
@@ -12,6 +14,7 @@ export interface CartItem extends Product {
 }
 
 export type PaymentMethod = 'CASH' | 'QR_PH' | 'CARD' | 'MAYA_TERMINAL';
+export type SaleStatus = 'PAID' | 'PAYMENT_PENDING' | 'CANCELLED';
 
 export interface Sale {
   id: string;
@@ -24,6 +27,8 @@ export interface Sale {
     price: number;
   }[];
   paymentMethod: PaymentMethod;
+  status: SaleStatus;
+  providerRef?: string;
   timestamp: string;
   createdAt: string;
 }

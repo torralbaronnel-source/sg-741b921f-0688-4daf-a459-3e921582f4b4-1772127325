@@ -100,6 +100,7 @@ export default function POSPage() {
         price: item.price
       })),
       paymentMethod: method,
+      status: "PAID",
       timestamp: new Date().toISOString(),
       createdAt: new Date().toISOString()
     };
