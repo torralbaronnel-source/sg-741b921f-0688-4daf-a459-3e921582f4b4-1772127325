@@ -20,14 +20,15 @@ export interface SaleItem extends Product {
 export interface Sale {
   id: string;
   orderNo: string;
-  items: SaleItem[];
   total: number;
-  subtotal: number;
-  taxTotal: number;
-  discountTotal: number;
   paymentMethod: PaymentMethod;
-  amountPaid: number;
-  change: number;
-  timestamp: number;
-  referenceNo?: string;
+  status: "PAID" | "PENDING" | "CANCELLED";
+  createdAt: string;
+  providerRef?: string;
+  items?: {
+    id: string;
+    name: string;
+    quantity: number;
+    price: number;
+  }[];
 }

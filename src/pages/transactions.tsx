@@ -1,425 +1,333 @@
 import React, { useState, useEffect, useMemo } from "react";
 import { SEO } from "@/components/SEO";
 import { 
-  ArrowLeft, Search, Filter, Download, Calendar as CalendarIcon,
-  Banknote, CreditCard, QrCode, Smartphone, MoreHorizontal, ChevronDown
+  ArrowLeft, 
+  Search, 
+  Download, 
+  ChevronRight, 
+  ChevronLeft,
+  ChevronUp,
+  ChevronDown,
+  X,
+  Receipt,
+  Package,
+  Calendar as CalendarIcon
 } from "lucide-react";
-import { 
-  Card, CardContent, CardHeader, CardTitle, CardDescription 
-} from "@/components/ui/card";
-import { Input } from "@/components/ui/input";
+import Link from "next/link";
 import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
 import { Badge } from "@/components/ui/badge";
-import {
-  Table,
-  TableBody,
-  TableCell,
-  TableHead,
-  TableHeader,
-  TableRow,
-} from "@/components/ui/table";
+import { 
+  Card, 
+  CardContent, 
+  CardHeader, 
+  CardTitle 
+} from "@/components/ui/card";
 import {
   DropdownMenu,
   DropdownMenuContent,
   DropdownMenuItem,
-  DropdownMenuLabel,
-  DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
-import { 
-  format, 
-  subDays, 
-  startOfDay, 
-  endOfDay, 
-  startOfMonth, 
-  endOfMonth, 
-  subMonths,
-  startOfYear,
-  endOfYear,
-  isWithinInterval 
-} from "date-fns";
-import Link from "next/link";
-import { Sale, PaymentMethod } from "@/types/pos";
 import {
   Pagination,
   PaginationContent,
-  PaginationEllipsis,
   PaginationItem,
   PaginationLink,
-  PaginationNext,
-  PaginationPrevious,
 } from "@/components/ui/pagination";
+import { useToast } from "@/hooks/use-toast";
+import { Sale, PaymentMethod } from "@/types/pos";
+import { MOCK_SALES } from "@/lib/mock-data";
+import { format, isWithinInterval, startOfDay, endOfDay, subDays, startOfMonth, endOfMonth, subMonths, startOfYear, endOfYear } from "date-fns";
+import { motion, AnimatePresence } from "framer-motion";
+import { cn } from "@/lib/utils";
 
 type DateRangeType = 'today' | '7days' | '30days' | 'thisMonth' | 'lastMonth' | 'thisYear' | 'lastYear' | 'all';
 
-export default function Transactions() {
-  const [sales, setSales] = useState<Sale[]>([]);
+export default function TransactionsPage() {
   const [searchTerm, setSearchTerm] = useState("");
-  const [methodFilter, setMethodFilter] = useState<PaymentMethod | "ALL">("ALL");
-  const [dateRange, setDateRange] = useState<DateRangeType>('all');
+  const [filterMethod, setFilterMethod] = useState<PaymentMethod | "ALL">("ALL");
   const [currentPage, setCurrentPage] = useState(1);
+  const [selectedSale, setSelectedSale] = useState<Sale | null>(null);
+  const [isPanelExpanded, setIsPanelExpanded] = useState(false);
+  const { toast } = useToast();
+
   const itemsPerPage = 10;
 
-  useEffect(() => {
-    const savedSales = localStorage.getItem("pocketpos_sales");
-    if (savedSales) {
-      try {
-        setSales(JSON.parse(savedSales));
-      } catch (e) {
-        console.error("Failed to parse sales", e);
-        setSales([]);
-      }
-    }
+  // Enhance mock data with items if they don't exist
+  const salesWithItems: Sale[] = useMemo(() => {
+    return MOCK_SALES.map(sale => ({
+      ...sale,
+      items: sale.items || [
+        { id: "1", name: "Iced Latte", quantity: 2, price: 120 },
+        { id: "2", name: "Croissant", quantity: 1, price: 85 }
+      ]
+    }));
   }, []);
+
+  const filteredSales = useMemo(() => {
+    return salesWithItems.filter((sale) => {
+      const matchesSearch = sale.orderNo.toLowerCase().includes(searchTerm.toLowerCase()) ||
+                          (sale.providerRef?.toLowerCase().includes(searchTerm.toLowerCase()));
+      const matchesMethod = filterMethod === "ALL" || sale.paymentMethod === filterMethod;
+      return matchesSearch && matchesMethod;
+    }).sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime());
+  }, [searchTerm, filterMethod, salesWithItems]);
+
+  const totalPages = Math.ceil(filteredSales.length / itemsPerPage);
+  const paginatedSales = filteredSales.slice(
+    (currentPage - 1) * itemsPerPage,
+    currentPage * itemsPerPage
+  );
 
   useEffect(() => {
     setCurrentPage(1);
-  }, [searchTerm, methodFilter, dateRange]);
-
-  const filteredSales = useMemo(() => {
-    return sales.filter((sale) => {
-      // 1. Search Filter
-      const matchesSearch = 
-        sale.id.toLowerCase().includes(searchTerm.toLowerCase()) ||
-        (sale.referenceNo?.toLowerCase() || "").includes(searchTerm.toLowerCase());
-      
-      // 2. Payment Method Filter
-      const matchesMethod = methodFilter === "ALL" || sale.paymentMethod === methodFilter;
-
-      // 3. Date Range Filter
-      const saleDate = new Date(sale.timestamp);
-      const now = new Date();
-      let matchesDate = true;
-
-      switch (dateRange) {
-        case 'today':
-          matchesDate = isWithinInterval(saleDate, { start: startOfDay(now), end: endOfDay(now) });
-          break;
-        case '7days':
-          matchesDate = isWithinInterval(saleDate, { start: startOfDay(subDays(now, 7)), end: endOfDay(now) });
-          break;
-        case '30days':
-          matchesDate = isWithinInterval(saleDate, { start: startOfDay(subDays(now, 30)), end: endOfDay(now) });
-          break;
-        case 'thisMonth':
-          matchesDate = isWithinInterval(saleDate, { start: startOfMonth(now), end: endOfMonth(now) });
-          break;
-        case 'lastMonth':
-          const lastMonth = subMonths(now, 1);
-          matchesDate = isWithinInterval(saleDate, { start: startOfMonth(lastMonth), end: endOfMonth(lastMonth) });
-          break;
-        case 'thisYear':
-          matchesDate = isWithinInterval(saleDate, { start: startOfYear(now), end: endOfYear(now) });
-          break;
-        case 'lastYear':
-          const lastYear = subDays(startOfYear(now), 1);
-          matchesDate = isWithinInterval(saleDate, { start: startOfYear(lastYear), end: endOfYear(lastYear) });
-          break;
-        default:
-          matchesDate = true;
-      }
-
-      return matchesSearch && matchesMethod && matchesDate;
-    }).sort((a, b) => b.timestamp - a.timestamp);
-  }, [sales, searchTerm, methodFilter, dateRange]);
-
-  const stats = useMemo(() => {
-    const total = filteredSales.reduce((acc, sale) => acc + sale.total, 0);
-    const cash = filteredSales.filter(s => s.paymentMethod === 'CASH').reduce((acc, sale) => acc + sale.total, 0);
-    const digital = total - cash;
-    return { total, cash, digital, count: filteredSales.length };
-  }, [filteredSales]);
-
-  const totalPages = Math.ceil(filteredSales.length / itemsPerPage);
-  const paginatedSales = useMemo(() => {
-    const startIndex = (currentPage - 1) * itemsPerPage;
-    return filteredSales.slice(startIndex, startIndex + itemsPerPage);
-  }, [filteredSales, currentPage]);
+  }, [searchTerm, filterMethod]);
 
   const exportToCSV = (range?: DateRangeType) => {
-    // If a range is provided from the dropdown, we temporarily filter for that range
-    // otherwise we use the current 'filteredSales' which already has search/method/date filters
     let dataToExport = filteredSales;
 
-    if (range && range !== dateRange) {
-      // Create a temporary filtered set if the user chose a specific range from the export menu
-      dataToExport = sales.filter((sale) => {
-        const matchesSearch = 
-          sale.id.toLowerCase().includes(searchTerm.toLowerCase()) ||
-          (sale.referenceNo?.toLowerCase() || "").includes(searchTerm.toLowerCase());
-        const matchesMethod = methodFilter === "ALL" || sale.paymentMethod === methodFilter;
-        
-        const saleDate = new Date(sale.timestamp);
-        const now = new Date();
-        let matchesDate = true;
-        
-        switch (range) {
-          case 'today': matchesDate = isWithinInterval(saleDate, { start: startOfDay(now), end: endOfDay(now) }); break;
-          case '7days': matchesDate = isWithinInterval(saleDate, { start: startOfDay(subDays(now, 7)), end: endOfDay(now) }); break;
-          case '30days': matchesDate = isWithinInterval(saleDate, { start: startOfDay(subDays(now, 30)), end: endOfDay(now) }); break;
-          case 'thisMonth': matchesDate = isWithinInterval(saleDate, { start: startOfMonth(now), end: endOfMonth(now) }); break;
-          case 'lastMonth': {
-            const lastMonth = subMonths(now, 1);
-            matchesDate = isWithinInterval(saleDate, { start: startOfMonth(lastMonth), end: endOfMonth(lastMonth) });
-            break;
-          }
-          case 'thisYear': matchesDate = isWithinInterval(saleDate, { start: startOfYear(now), end: endOfYear(now) }); break;
-          case 'lastYear': {
-            const lastYear = subDays(startOfYear(now), 1);
-            matchesDate = isWithinInterval(saleDate, { start: startOfYear(lastYear), end: endOfYear(lastYear) });
-            break;
-          }
-          default: matchesDate = true;
+    if (range && range !== 'all') {
+      const now = new Date();
+      let start: Date, end: Date;
+
+      switch (range) {
+        case 'today': start = startOfDay(now); end = endOfDay(now); break;
+        case '7days': start = subDays(startOfDay(now), 7); end = endOfDay(now); break;
+        case '30days': start = subDays(startOfDay(now), 30); end = endOfDay(now); break;
+        case 'thisMonth': start = startOfMonth(now); end = endOfMonth(now); break;
+        case 'lastMonth': {
+          const lastMonth = subMonths(now, 1);
+          start = startOfMonth(lastMonth);
+          end = endOfMonth(lastMonth);
+          break;
         }
-        return matchesSearch && matchesMethod && matchesDate;
-      }).sort((a, b) => b.timestamp - a.timestamp);
+        case 'thisYear': start = startOfYear(now); end = endOfYear(now); break;
+        case 'lastYear': {
+          const lastYear = subDays(startOfYear(now), 1);
+          start = startOfYear(lastYear);
+          end = endOfYear(lastYear);
+          break;
+        }
+        default: start = new Date(0); end = now;
+      }
+
+      dataToExport = salesWithItems.filter(sale => 
+        isWithinInterval(new Date(sale.createdAt), { start, end })
+      );
     }
 
-    if (dataToExport.length === 0) return;
+    if (dataToExport.length === 0) {
+      toast({ title: "No data to export", variant: "destructive" });
+      return;
+    }
 
-    const headers = [
-      "Order ID", "Date", "Time", "Items Summary", "Payment Method", "Ref No", 
-      "Subtotal", "Tax", "Discount", "Grand Total"
-    ];
-
-    const rows = dataToExport.map(sale => [
-      `#${sale.id}`,
-      format(sale.timestamp, "yyyy-MM-dd"),
-      format(sale.timestamp, "HH:mm:ss"),
-      sale.items.map(i => `${i.name} (x${i.quantity})`).join(" | "),
-      sale.paymentMethod.replace('_', ' '),
-      sale.referenceNo || "N/A",
-      sale.subtotal.toFixed(2),
-      sale.taxTotal.toFixed(2),
-      sale.discountTotal.toFixed(2),
-      sale.total.toFixed(2)
-    ]);
-
+    const headers = ["Order No", "Date", "Total", "Method", "Status", "Reference"];
     const csvContent = [
       headers.join(","),
-      ...rows.map(row => row.map(cell => `"${String(cell).replace(/"/g, '""')}"`).join(","))
+      ...dataToExport.map(s => [
+        s.orderNo,
+        format(new Date(s.createdAt), "yyyy-MM-dd HH:mm"),
+        s.total,
+        s.paymentMethod,
+        s.status,
+        s.providerRef || ""
+      ].join(","))
     ].join("\n");
 
     const blob = new Blob([csvContent], { type: "text/csv;charset=utf-8;" });
-    const url = URL.createObjectURL(blob);
     const link = document.createElement("a");
-    const filename = `PocketPOS_Export_${range || dateRange}_${format(new Date(), "yyyyMMdd_HHmm")}.csv`;
-    
+    const url = URL.createObjectURL(blob);
     link.setAttribute("href", url);
-    link.setAttribute("download", filename);
+    link.setAttribute("download", `transactions_${range || 'filtered'}_${format(new Date(), "yyyyMMdd")}.csv`);
     document.body.appendChild(link);
     link.click();
     document.body.removeChild(link);
-    URL.revokeObjectURL(url);
+
+    toast({
+      title: "Export Successful",
+      description: `Exported ${dataToExport.length} transactions.`,
+    });
   };
 
-  const getRangeLabel = (range: DateRangeType) => {
-    const labels: Record<DateRangeType, string> = {
-      today: "Today",
-      '7days': "Last 7 Days",
-      '30days': "Last 30 Days",
-      thisMonth: "This Month",
-      lastMonth: "Last Month",
-      thisYear: "This Year",
-      lastYear: "Last Year",
-      all: "All Time"
-    };
-    return labels[range];
+  const handleRowClick = (sale: Sale) => {
+    setSelectedSale(sale);
+    setIsPanelExpanded(true);
   };
 
   return (
-    <div className="min-h-screen bg-[#F5F6F8] pb-20">
-      <SEO title="Transactions - PocketPOS PH" />
+    <div className="min-h-screen bg-[#F5F6F8] pb-24 lg:pb-0">
+      <SEO title="Transactions | PocketPOS PH" />
       
-      <div className="bg-white border-b px-4 py-4 sticky top-0 z-10">
-        <div className="max-w-5xl mx-auto flex items-center justify-between">
+      {/* Header */}
+      <div className="bg-white border-b border-slate-200 sticky top-0 z-30 px-4 py-4">
+        <div className="max-w-7xl mx-auto flex items-center justify-between">
           <div className="flex items-center gap-3">
             <Link href="/">
               <Button variant="ghost" size="icon" className="rounded-full">
-                <ArrowLeft className="h-5 w-5" />
+                <ArrowLeft className="w-5 h-5" />
               </Button>
             </Link>
-            <h1 className="text-xl font-bold text-[#0F172A]">Transactions</h1>
+            <h1 className="text-xl font-bold text-[#0F172A]">History</h1>
           </div>
+          
           <DropdownMenu>
             <DropdownMenuTrigger asChild>
-              <Button variant="outline" className="gap-2">
-                <Download className="h-4 w-4" />
-                Export CSV
-                <ChevronDown className="h-4 w-4 opacity-50" />
+              <Button variant="outline" className="gap-2 rounded-xl">
+                <Download className="w-4 h-4" />
+                <span>Export</span>
               </Button>
             </DropdownMenuTrigger>
-            <DropdownMenuContent align="end" className="w-56">
-              <DropdownMenuLabel>Export Current Filters</DropdownMenuLabel>
-              <DropdownMenuItem onClick={() => exportToCSV()}>
-                <Download className="mr-2 h-4 w-4" />
-                Current View
-              </DropdownMenuItem>
-              <DropdownMenuSeparator />
-              <DropdownMenuLabel>Export by Preset</DropdownMenuLabel>
+            <DropdownMenuContent align="end" className="w-56 rounded-xl">
+              <DropdownMenuItem onClick={() => exportToCSV()}>Current View</DropdownMenuItem>
               <DropdownMenuItem onClick={() => exportToCSV('today')}>Today</DropdownMenuItem>
               <DropdownMenuItem onClick={() => exportToCSV('7days')}>Last 7 Days</DropdownMenuItem>
               <DropdownMenuItem onClick={() => exportToCSV('30days')}>Last 30 Days</DropdownMenuItem>
               <DropdownMenuItem onClick={() => exportToCSV('thisMonth')}>This Month</DropdownMenuItem>
               <DropdownMenuItem onClick={() => exportToCSV('lastMonth')}>Last Month</DropdownMenuItem>
-              <DropdownMenuItem onClick={() => exportToCSV('thisYear')}>This Year</DropdownMenuItem>
-              <DropdownMenuItem onClick={() => exportToCSV('lastYear')}>Last Year</DropdownMenuItem>
-              <DropdownMenuSeparator />
-              <DropdownMenuItem onClick={() => exportToCSV('all')} className="font-bold">Full History (All Time)</DropdownMenuItem>
+              <DropdownMenuItem onClick={() => exportToCSV('all')}>All Time</DropdownMenuItem>
             </DropdownMenuContent>
           </DropdownMenu>
         </div>
       </div>
 
-      <div className="max-w-5xl mx-auto px-4 py-6 space-y-6">
-        <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
-          <Card className="border-none shadow-sm">
-            <CardContent className="p-4">
-              <p className="text-xs font-medium text-slate-500 uppercase tracking-wider">Revenue ({getRangeLabel(dateRange)})</p>
-              <p className="text-2xl font-bold text-[#0F172A] mt-1">₱{stats.total.toLocaleString()}</p>
-            </CardContent>
-          </Card>
-          <Card className="border-none shadow-sm">
-            <CardContent className="p-4">
-              <p className="text-xs font-medium text-slate-500 uppercase tracking-wider">Cash on Hand</p>
-              <p className="text-2xl font-bold text-green-600 mt-1">₱{stats.cash.toLocaleString()}</p>
-            </CardContent>
-          </Card>
-          <Card className="border-none shadow-sm">
-            <CardContent className="p-4">
-              <p className="text-xs font-medium text-slate-500 uppercase tracking-wider">Digital/Card</p>
-              <p className="text-2xl font-bold text-blue-600 mt-1">₱{stats.digital.toLocaleString()}</p>
-            </CardContent>
-          </Card>
-          <Card className="border-none shadow-sm">
-            <CardContent className="p-4">
-              <p className="text-xs font-medium text-slate-500 uppercase tracking-wider">Sales Count</p>
-              <p className="text-2xl font-bold text-slate-900 mt-1">{stats.count}</p>
-            </CardContent>
-          </Card>
-        </div>
-
-        <div className="flex flex-col md:flex-row gap-4 items-center">
-          <div className="relative flex-1 w-full">
-            <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-slate-400" />
+      <div className="max-w-7xl mx-auto p-4 space-y-4">
+        {/* Filters */}
+        <div className="flex flex-col md:flex-row gap-4">
+          <div className="relative flex-1">
+            <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400" />
             <Input 
-              placeholder="Search Order ID or Ref No..." 
-              className="pl-10 h-11 bg-white border-none shadow-sm rounded-xl"
+              placeholder="Search Order # or Ref..." 
+              className="pl-10 h-12 bg-white border-slate-200 rounded-xl"
               value={searchTerm}
               onChange={(e) => setSearchTerm(e.target.value)}
             />
           </div>
-          <div className="flex gap-2 overflow-x-auto w-full md:w-auto pb-2 md:pb-0 scrollbar-hide">
-            {(['ALL', 'CASH', 'GCASH_MAYA', 'MAYA_TERMINAL', 'CARD'] as const).map((method) => (
+          <div className="flex gap-2 overflow-x-auto pb-2 md:pb-0 scrollbar-hide">
+            {["ALL", "CASH", "QR_PH", "CARD", "MAYA_TERMINAL"].map((method) => (
               <Button
                 key={method}
-                variant={methodFilter === method ? "default" : "outline"}
+                variant={filterMethod === method ? "default" : "outline"}
                 size="sm"
-                className="rounded-full whitespace-nowrap"
-                onClick={() => setMethodFilter(method)}
+                className={cn(
+                  "rounded-full whitespace-nowrap h-10 px-4",
+                  filterMethod === method ? "bg-[#2563EB]" : "bg-white text-slate-600 border-slate-200"
+                )}
+                onClick={() => setFilterMethod(method as any)}
               >
-                {method === 'ALL' ? 'All' : method.replace('_', ' ')}
+                {method.replace("_", " ")}
               </Button>
             ))}
           </div>
         </div>
 
-        <Card className="border-none shadow-sm overflow-hidden rounded-2xl">
-          <Table>
-            <TableHeader className="bg-slate-50">
-              <TableRow>
-                <TableHead className="w-[100px]">Order</TableHead>
-                <TableHead>Time</TableHead>
-                <TableHead>Method</TableHead>
-                <TableHead className="text-right">Total</TableHead>
-                <TableHead className="w-[50px]"></TableHead>
-              </TableRow>
-            </TableHeader>
-            <TableBody className="bg-white">
-              {paginatedSales.length > 0 ? (
-                paginatedSales.map((sale) => (
-                  <TableRow key={sale.id}>
-                    <TableCell className="font-medium text-[#0F172A]">#{sale.id}</TableCell>
-                    <TableCell className="text-slate-500 text-sm">
-                      {format(sale.timestamp, "MMM dd, HH:mm")}
-                    </TableCell>
-                    <TableCell>
-                      <Badge variant="secondary" className="font-normal text-[10px] uppercase">
-                        {sale.paymentMethod.replace('_', ' ')}
-                      </Badge>
-                    </TableCell>
-                    <TableCell className="text-right font-bold text-[#0F172A]">
-                      ₱{sale.total.toLocaleString()}
-                    </TableCell>
-                    <TableCell>
-                      <Button variant="ghost" size="icon" className="h-8 w-8">
-                        <MoreHorizontal className="h-4 w-4" />
-                      </Button>
-                    </TableCell>
-                  </TableRow>
-                ))
-              ) : (
-                <TableRow>
-                  <TableCell colSpan={5} className="h-32 text-center text-slate-400">
-                    No transactions found for the selected filters.
-                  </TableCell>
-                </TableRow>
-              )}
-            </TableBody>
-          </Table>
+        {/* Transaction Table */}
+        <Card className="border-none shadow-sm rounded-2xl overflow-hidden">
+          <CardContent className="p-0">
+            <div className="overflow-x-auto">
+              <table className="w-full text-left">
+                <thead className="bg-slate-50 border-b border-slate-100">
+                  <tr>
+                    <th className="px-6 py-4 text-xs font-semibold text-slate-500 uppercase">Order</th>
+                    <th className="px-6 py-4 text-xs font-semibold text-slate-500 uppercase">Total</th>
+                    <th className="px-6 py-4 text-xs font-semibold text-slate-500 uppercase">Method</th>
+                    <th className="px-6 py-4 text-xs font-semibold text-slate-500 uppercase">Status</th>
+                    <th className="px-6 py-4 text-xs font-semibold text-slate-500 uppercase text-right">Date</th>
+                  </tr>
+                </thead>
+                <tbody className="divide-y divide-slate-100 bg-white">
+                  {paginatedSales.map((sale) => (
+                    <tr 
+                      key={sale.id} 
+                      className={cn(
+                        "hover:bg-slate-50 transition-colors cursor-pointer group",
+                        selectedSale?.id === sale.id && "bg-blue-50/50"
+                      )}
+                      onClick={() => handleRowClick(sale)}
+                    >
+                      <td className="px-6 py-5">
+                        <div className="font-bold text-[#0F172A]">{sale.orderNo}</div>
+                        <div className="text-xs text-slate-400 font-mono">{sale.providerRef || 'No Reference'}</div>
+                      </td>
+                      <td className="px-6 py-5">
+                        <span className="font-bold text-[#0F172A]">₱{sale.total.toFixed(2)}</span>
+                      </td>
+                      <td className="px-6 py-5">
+                        <Badge variant="outline" className="bg-slate-50 border-slate-200 text-slate-600 rounded-lg">
+                          {sale.paymentMethod.replace("_", " ")}
+                        </Badge>
+                      </td>
+                      <td className="px-6 py-5">
+                        <Badge className={cn(
+                          "rounded-lg",
+                          sale.status === "PAID" ? "bg-emerald-100 text-emerald-700 hover:bg-emerald-100" : "bg-amber-100 text-amber-700 hover:bg-amber-100"
+                        )}>
+                          {sale.status}
+                        </Badge>
+                      </td>
+                      <td className="px-6 py-5 text-right">
+                        <div className="text-sm text-slate-600">{format(new Date(sale.createdAt), "MMM dd")}</div>
+                        <div className="text-xs text-slate-400">{format(new Date(sale.createdAt), "HH:mm")}</div>
+                      </td>
+                    </tr>
+                  ))}
+                  {filteredSales.length === 0 && (
+                    <tr>
+                      <td colSpan={5} className="px-6 py-12 text-center text-slate-400">
+                        No transactions found matching your filters.
+                      </td>
+                    </tr>
+                  )}
+                </tbody>
+              </table>
+            </div>
+          </CardContent>
         </Card>
 
-        {filteredSales.length > itemsPerPage && (
-          <div className="flex flex-col md:flex-row items-center justify-between gap-4 mt-4">
+        {/* Pagination */}
+        {totalPages > 1 && (
+          <div className="flex items-center justify-between pt-4">
             <p className="text-sm text-slate-500">
-              Showing <span className="font-medium text-slate-900">{((currentPage - 1) * itemsPerPage) + 1}</span> to <span className="font-medium text-slate-900">{Math.min(currentPage * itemsPerPage, filteredSales.length)}</span> of <span className="font-medium text-slate-900">{filteredSales.length}</span> results
+              Showing <span className="font-medium">{(currentPage - 1) * itemsPerPage + 1}</span> to <span className="font-medium">{Math.min(currentPage * itemsPerPage, filteredSales.length)}</span> of <span className="font-medium">{filteredSales.length}</span> results
             </p>
-            <Pagination className="justify-end w-auto">
+            <Pagination className="justify-end">
               <PaginationContent>
                 <PaginationItem>
                   <Button 
                     variant="ghost" 
                     size="sm" 
-                    onClick={() => setCurrentPage(prev => Math.max(1, prev - 1))}
+                    onClick={() => setCurrentPage(p => Math.max(1, p - 1))}
                     disabled={currentPage === 1}
-                    className="gap-1 pl-2.5"
+                    className="gap-1 rounded-lg"
                   >
-                    <PaginationPrevious className="h-4 w-4" />
-                    <span>Previous</span>
+                    <ChevronLeft className="w-4 h-4" />
+                    <span>Prev</span>
                   </Button>
                 </PaginationItem>
-                
-                {Array.from({ length: Math.min(5, totalPages) }, (_, i) => {
-                  let pageNum = currentPage;
-                  if (currentPage <= 3) pageNum = i + 1;
-                  else if (currentPage >= totalPages - 2) pageNum = totalPages - 4 + i;
-                  else pageNum = currentPage - 2 + i;
-
-                  if (pageNum <= 0 || pageNum > totalPages) return null;
-
-                  return (
-                    <PaginationItem key={pageNum}>
-                      <PaginationLink
-                        onClick={() => setCurrentPage(pageNum)}
-                        isActive={currentPage === pageNum}
-                        className="cursor-pointer"
-                      >
-                        {pageNum}
-                      </PaginationLink>
-                    </PaginationItem>
-                  );
-                })}
-
+                {Array.from({ length: totalPages }, (_, i) => i + 1).map((page) => (
+                  <PaginationItem key={page}>
+                    <PaginationLink 
+                      isActive={currentPage === page}
+                      onClick={() => setCurrentPage(page)}
+                      className={cn(
+                        "rounded-lg cursor-pointer",
+                        currentPage === page ? "bg-[#2563EB] text-white hover:bg-[#1D4ED8] hover:text-white" : "hover:bg-slate-100"
+                      )}
+                    >
+                      {page}
+                    </PaginationLink>
+                  </PaginationItem>
+                ))}
                 <PaginationItem>
                   <Button 
                     variant="ghost" 
                     size="sm" 
-                    onClick={() => setCurrentPage(prev => Math.min(totalPages, prev + 1))}
+                    onClick={() => setCurrentPage(p => Math.min(totalPages, p + 1))}
                     disabled={currentPage === totalPages}
-                    className="gap-1 pr-2.5"
+                    className="gap-1 rounded-lg"
                   >
                     <span>Next</span>
-                    <PaginationNext className="h-4 w-4" />
+                    <ChevronRight className="w-4 h-4" />
                   </Button>
                 </PaginationItem>
               </PaginationContent>
@@ -427,6 +335,153 @@ export default function Transactions() {
           </div>
         )}
       </div>
+
+      {/* 🚀 Dynamic Bottom Panel (Collapsible & Transparent) */}
+      <AnimatePresence>
+        {selectedSale && (
+          <motion.div
+            initial={{ y: "100%", opacity: 0 }}
+            animate={{ 
+              y: isPanelExpanded ? 0 : "calc(100% - 60px)", 
+              opacity: 1,
+              backgroundColor: isPanelExpanded ? "rgba(255, 255, 255, 0.95)" : "rgba(255, 255, 255, 0)" 
+            }}
+            exit={{ y: "100%", opacity: 0 }}
+            transition={{ type: "spring", damping: 25, stiffness: 200 }}
+            className={cn(
+              "fixed bottom-0 left-0 right-0 z-50 border-t border-slate-200/50 backdrop-blur-md",
+              !isPanelExpanded && "border-t-transparent shadow-none"
+            )}
+          >
+            {/* Toggle Handle */}
+            <div 
+              className="flex items-center justify-between px-6 py-4 cursor-pointer hover:bg-slate-50/50 transition-colors"
+              onClick={() => setIsPanelExpanded(!isPanelExpanded)}
+            >
+              <div className="flex items-center gap-3">
+                <div className={cn(
+                  "p-2 rounded-xl transition-colors",
+                  isPanelExpanded ? "bg-blue-100 text-blue-600" : "bg-white text-slate-400 shadow-sm border border-slate-100"
+                )}>
+                  <Receipt className="w-5 h-5" />
+                </div>
+                <div>
+                  <div className={cn(
+                    "font-bold transition-all",
+                    isPanelExpanded ? "text-[#0F172A]" : "text-slate-400 text-sm"
+                  )}>
+                    {isPanelExpanded ? `Order ${selectedSale.orderNo}` : "Tap for Details"}
+                  </div>
+                  {isPanelExpanded && (
+                    <div className="text-xs text-slate-500">
+                      {format(new Date(selectedSale.createdAt), "MMM dd, yyyy • HH:mm")}
+                    </div>
+                  )}
+                </div>
+              </div>
+              
+              <div className="flex items-center gap-2">
+                {!isPanelExpanded && (
+                   <Badge variant="outline" className="bg-emerald-50 text-emerald-600 border-emerald-100 mr-2">
+                     ₱{selectedSale.total.toFixed(2)}
+                   </Badge>
+                )}
+                <Button 
+                  variant="ghost" 
+                  size="icon" 
+                  className="rounded-full h-8 w-8 hover:bg-slate-200"
+                >
+                  {isPanelExpanded ? <ChevronDown className="w-5 h-5" /> : <ChevronUp className="w-5 h-5" />}
+                </Button>
+                {isPanelExpanded && (
+                  <Button 
+                    variant="ghost" 
+                    size="icon" 
+                    className="rounded-full h-8 w-8 hover:bg-slate-200 ml-1"
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      setSelectedSale(null);
+                      setIsPanelExpanded(false);
+                    }}
+                  >
+                    <X className="w-5 h-5" />
+                  </Button>
+                )}
+              </div>
+            </div>
+
+            {/* Expanded Content */}
+            <div className={cn(
+              "px-6 pb-8 max-h-[70vh] overflow-y-auto",
+              !isPanelExpanded && "hidden"
+            )}>
+              <div className="grid md:grid-cols-2 gap-8 pt-4">
+                {/* Left: Item List */}
+                <div>
+                  <h3 className="text-xs font-bold text-slate-400 uppercase tracking-wider mb-4 flex items-center gap-2">
+                    <Package className="w-4 h-4" />
+                    Item Breakdown
+                  </h3>
+                  <div className="space-y-3">
+                    {selectedSale.items?.map((item) => (
+                      <div key={item.id} className="flex items-center justify-between p-3 bg-white border border-slate-100 rounded-xl shadow-sm">
+                        <div className="flex items-center gap-3">
+                          <div className="w-8 h-8 rounded-lg bg-slate-50 flex items-center justify-center text-xs font-bold text-slate-400">
+                            {item.quantity}x
+                          </div>
+                          <div>
+                            <div className="font-bold text-[#0F172A]">{item.name}</div>
+                            <div className="text-xs text-slate-500">₱{item.price.toFixed(2)} each</div>
+                          </div>
+                        </div>
+                        <div className="font-bold text-[#0F172A]">₱{(item.quantity * item.price).toFixed(2)}</div>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+
+                {/* Right: Payment Summary */}
+                <div className="space-y-6">
+                  <div>
+                    <h3 className="text-xs font-bold text-slate-400 uppercase tracking-wider mb-4">Summary</h3>
+                    <div className="bg-slate-50 rounded-2xl p-6 space-y-4">
+                      <div className="flex justify-between text-slate-600">
+                        <span>Payment Method</span>
+                        <span className="font-bold">{selectedSale.paymentMethod.replace("_", " ")}</span>
+                      </div>
+                      <div className="flex justify-between text-slate-600">
+                        <span>Status</span>
+                        <Badge className="bg-emerald-100 text-emerald-700 hover:bg-emerald-100 border-none">
+                          {selectedSale.status}
+                        </Badge>
+                      </div>
+                      <div className="flex justify-between text-slate-600">
+                        <span>Provider Ref</span>
+                        <span className="font-mono text-xs">{selectedSale.providerRef || "N/A"}</span>
+                      </div>
+                      <div className="border-t border-slate-200 pt-4 flex justify-between items-end">
+                        <span className="text-sm font-medium text-slate-500">Total Amount</span>
+                        <span className="text-3xl font-black text-[#0F172A]">₱{selectedSale.total.toFixed(2)}</span>
+                      </div>
+                    </div>
+                  </div>
+                  
+                  <div className="flex gap-3">
+                    <Button variant="outline" className="flex-1 h-12 rounded-xl gap-2 border-slate-200">
+                      <Download className="w-4 h-4" />
+                      PDF Receipt
+                    </Button>
+                    <Button className="flex-1 h-12 rounded-xl gap-2 bg-[#2563EB] hover:bg-[#1D4ED8]">
+                      <Receipt className="w-4 h-4" />
+                      Print Thermal
+                    </Button>
+                  </div>
+                </div>
+              </div>
+            </div>
+          </motion.div>
+        )}
+      </AnimatePresence>
     </div>
   );
 }
