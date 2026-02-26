@@ -19,14 +19,14 @@ export const MOCK_PRODUCTS: Product[] = [
 export const MOCK_SALES: Sale[] = [
   {
     id: "1",
-    date: new Date("2023-01-01T10:00:00Z"),
+    orderNo: "ORD-9999",
     items: [
-      { productId: "1", quantity: 2, price: 100, discount: 0, taxRate: 12 }
+      { id: "1", name: "Sample Item", quantity: 2, price: 100 }
     ],
-    total: 224,
-    paymentMethod: "Cash",
-    change: 0,
-    note: "Initial sale for testing."
+    total: 200,
+    paymentMethod: "CASH",
+    status: "PAID",
+    createdAt: new Date().toISOString()
   }
 ];
 
