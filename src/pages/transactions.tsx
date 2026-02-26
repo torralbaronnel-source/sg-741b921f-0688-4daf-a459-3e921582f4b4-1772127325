@@ -40,6 +40,15 @@ import {
 } from "date-fns";
 import Link from "next/link";
 import { Sale, PaymentMethod } from "@/types/pos";
+import {
+  Pagination,
+  PaginationContent,
+  PaginationEllipsis,
+  PaginationItem,
+  PaginationLink,
+  PaginationNext,
+  PaginationPrevious,
+} from "@/components/ui/pagination";
 
 type DateRangeType = 'today' | '7days' | '30days' | 'thisMonth' | 'lastMonth' | 'thisYear' | 'lastYear' | 'all';
 
@@ -48,6 +57,8 @@ export default function Transactions() {
   const [searchTerm, setSearchTerm] = useState("");
   const [methodFilter, setMethodFilter] = useState<PaymentMethod | "ALL">("ALL");
   const [dateRange, setDateRange] = useState<DateRangeType>('all');
+  const [currentPage, setCurrentPage] = useState(1);
+  const itemsPerPage = 10;
 
   useEffect(() => {
     const savedSales = localStorage.getItem("pocketpos_sales");
@@ -60,6 +71,10 @@ export default function Transactions() {
       }
     }
   }, []);
+
+  useEffect(() => {
+    setCurrentPage(1);
+  }, [searchTerm, methodFilter, dateRange]);
 
   const filteredSales = useMemo(() => {
     return sales.filter((sale) => {
@@ -114,6 +129,12 @@ export default function Transactions() {
     const digital = total - cash;
     return { total, cash, digital, count: filteredSales.length };
   }, [filteredSales]);
+
+  const totalPages = Math.ceil(filteredSales.length / itemsPerPage);
+  const paginatedSales = useMemo(() => {
+    const startIndex = (currentPage - 1) * itemsPerPage;
+    return filteredSales.slice(startIndex, startIndex + itemsPerPage);
+  }, [filteredSales, currentPage]);
 
   const exportToCSV = (range?: DateRangeType) => {
     // If a range is provided from the dropdown, we temporarily filter for that range
@@ -315,8 +336,8 @@ export default function Transactions() {
               </TableRow>
             </TableHeader>
             <TableBody className="bg-white">
-              {filteredSales.length > 0 ? (
-                filteredSales.map((sale) => (
+              {paginatedSales.length > 0 ? (
+                paginatedSales.map((sale) => (
                   <TableRow key={sale.id}>
                     <TableCell className="font-medium text-[#0F172A]">#{sale.id}</TableCell>
                     <TableCell className="text-slate-500 text-sm">
@@ -347,6 +368,64 @@ export default function Transactions() {
             </TableBody>
           </Table>
         </Card>
+
+        {filteredSales.length > itemsPerPage && (
+          <div className="flex flex-col md:flex-row items-center justify-between gap-4 mt-4">
+            <p className="text-sm text-slate-500">
+              Showing <span className="font-medium text-slate-900">{((currentPage - 1) * itemsPerPage) + 1}</span> to <span className="font-medium text-slate-900">{Math.min(currentPage * itemsPerPage, filteredSales.length)}</span> of <span className="font-medium text-slate-900">{filteredSales.length}</span> results
+            </p>
+            <Pagination className="justify-end w-auto">
+              <PaginationContent>
+                <PaginationItem>
+                  <Button 
+                    variant="ghost" 
+                    size="sm" 
+                    onClick={() => setCurrentPage(prev => Math.max(1, prev - 1))}
+                    disabled={currentPage === 1}
+                    className="gap-1 pl-2.5"
+                  >
+                    <PaginationPrevious className="h-4 w-4" />
+                    <span>Previous</span>
+                  </Button>
+                </PaginationItem>
+                
+                {Array.from({ length: Math.min(5, totalPages) }, (_, i) => {
+                  let pageNum = currentPage;
+                  if (currentPage <= 3) pageNum = i + 1;
+                  else if (currentPage >= totalPages - 2) pageNum = totalPages - 4 + i;
+                  else pageNum = currentPage - 2 + i;
+
+                  if (pageNum <= 0 || pageNum > totalPages) return null;
+
+                  return (
+                    <PaginationItem key={pageNum}>
+                      <PaginationLink
+                        onClick={() => setCurrentPage(pageNum)}
+                        isActive={currentPage === pageNum}
+                        className="cursor-pointer"
+                      >
+                        {pageNum}
+                      </PaginationLink>
+                    </PaginationItem>
+                  );
+                })}
+
+                <PaginationItem>
+                  <Button 
+                    variant="ghost" 
+                    size="sm" 
+                    onClick={() => setCurrentPage(prev => Math.min(totalPages, prev + 1))}
+                    disabled={currentPage === totalPages}
+                    className="gap-1 pr-2.5"
+                  >
+                    <span>Next</span>
+                    <PaginationNext className="h-4 w-4" />
+                  </Button>
+                </PaginationItem>
+              </PaginationContent>
+            </Pagination>
+          </div>
+        )}
       </div>
     </div>
   );
