@@ -1,39 +1,31 @@
 import React, { useState, useMemo } from "react";
 import { SEO } from "@/components/SEO";
-import { INITIAL_PRODUCTS } from "@/lib/mock-data";
-import { Product, CartItem } from "@/types/pos";
-import { 
-  ArrowLeft, 
-  Search, 
-  ShoppingCart, 
-  Plus, 
-  Minus, 
-  Trash2,
-  CheckCircle2
-} from "lucide-react";
+import { ArrowLeft, Search, Plus, Minus, Trash2, ShoppingCart, CheckCircle2, X } from "lucide-react";
 import Link from "next/link";
-import { Button } from "@/components/ui/button";
-import { Input } from "@/components/ui/input";
-import { cn } from "@/lib/utils";
+import { INITIAL_PRODUCTS } from "@/lib/mock-data";
+import { Product, CartItem, Transaction } from "@/types/pos";
 
 export default function POSPage() {
-  const [products] = useState<Product[]>(INITIAL_PRODUCTS);
   const [cart, setCart] = useState<CartItem[]>([]);
   const [searchQuery, setSearchQuery] = useState("");
-  const [showCheckout, setShowCheckout] = useState(false);
+  const [isCheckout, setIsCheckout] = useState(false);
+  const [isReceipt, setIsReceipt] = useState(false);
+  const [lastTransaction, setLastTransaction] = useState<Transaction | null>(null);
+  const [paymentMethod, setPaymentMethod] = useState<string | null>(null);
 
+  // Filter products based on search
   const filteredProducts = useMemo(() => {
-    return products.filter(p => 
-      p.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
-      p.category.toLowerCase().includes(searchQuery.toLowerCase())
+    return INITIAL_PRODUCTS.filter((p) =>
+      p.name.toLowerCase().includes(searchQuery.toLowerCase())
     );
-  }, [products, searchQuery]);
+  }, [searchQuery]);
 
+  // High-speed cart operations
   const addToCart = (product: Product) => {
-    setCart(prev => {
-      const existing = prev.find(item => item.id === product.id);
+    setCart((prev) => {
+      const existing = prev.find((item) => item.id === product.id);
       if (existing) {
-        return prev.map(item => 
+        return prev.map((item) =>
           item.id === product.id ? { ...item, quantity: item.quantity + 1 } : item
         );
       }
@@ -41,158 +33,178 @@ export default function POSPage() {
     });
   };
 
-  const removeFromCart = (productId: string) => {
-    setCart(prev => prev.filter(item => item.id !== productId));
-  };
-
-  const updateQuantity = (productId: string, delta: number) => {
-    setCart(prev => prev.map(item => {
-      if (item.id === productId) {
-        const newQty = Math.max(1, item.quantity + delta);
-        return { ...item, quantity: newQty };
-      }
-      return item;
-    }));
+  const updateQuantity = (id: string, delta: number) => {
+    setCart((prev) =>
+      prev
+        .map((item) =>
+          item.id === id ? { ...item, quantity: Math.max(0, item.quantity + delta) } : item
+        )
+        .filter((item) => item.quantity > 0)
+    );
   };
 
   const total = useMemo(() => {
-    return cart.reduce((sum, item) => sum + (item.price * item.quantity), 0);
+    return cart.reduce((sum, item) => sum + item.price * item.quantity, 0);
   }, [cart]);
 
+  const handleCheckout = (method: string) => {
+    const transaction: Transaction = {
+      id: Math.random().toString(36).substr(2, 9),
+      items: [...cart],
+      total,
+      paymentMethod: method as any,
+      amountPaid: total,
+      change: 0,
+      timestamp: Date.now(),
+    };
+    setLastTransaction(transaction);
+    setPaymentMethod(method);
+    setIsCheckout(false);
+    setIsReceipt(true);
+    setCart([]);
+  };
+
+  if (isReceipt && lastTransaction) {
+    return (
+      <div className="min-h-screen bg-white p-4 flex flex-col items-center justify-center font-mono">
+        <div className="w-full max-w-sm border-2 border-dashed border-slate-300 p-6 rounded-lg bg-slate-50">
+          <div className="text-center mb-4">
+            <h2 className="text-xl font-bold uppercase tracking-widest">POCKETPOS PH</h2>
+            <p className="text-xs text-slate-500">Official Receipt</p>
+            <p className="text-xs text-slate-500">{new Date(lastTransaction.timestamp).toLocaleString()}</p>
+          </div>
+          <div className="space-y-2 mb-4 border-y border-slate-200 py-4">
+            {lastTransaction.items.map((item) => (
+              <div key={item.id} className="flex justify-between text-sm">
+                <span>{item.name} x{item.quantity}</span>
+                <span>₱{(item.price * item.quantity).toFixed(2)}</span>
+              </div>
+            ))}
+          </div>
+          <div className="flex justify-between font-bold text-lg mb-2">
+            <span>TOTAL</span>
+            <span>₱{lastTransaction.total.toFixed(2)}</span>
+          </div>
+          <div className="text-xs text-center text-slate-500 mb-6">
+            Payment: {paymentMethod?.toUpperCase()}
+          </div>
+          <button 
+            onClick={() => setIsReceipt(false)}
+            className="w-full bg-slate-900 text-white py-4 rounded-xl font-bold active:scale-95 transition-transform"
+          >
+            DONE
+          </button>
+        </div>
+      </div>
+    );
+  }
+
   return (
-    <div className="min-h-screen bg-slate-50 pb-24">
-      <SEO title="Point of Sale | PocketPOS PH" />
+    <div className="flex flex-col h-screen bg-slate-100 overflow-hidden font-sans">
+      <SEO title="POS | PocketPOS PH" />
       
-      {/* Header */}
-      <header className="bg-white border-b p-4 sticky top-0 z-20">
-        <div className="flex items-center space-x-4 max-w-lg mx-auto w-full">
-          <Link href="/" className="p-2 -ml-2 text-slate-600">
+      {/* Header - Simple & Static */}
+      <header className="bg-white border-b border-slate-200 px-4 py-3 flex items-center justify-between sticky top-0 z-10">
+        <div className="flex items-center gap-3">
+          <Link href="/" className="p-2 -ml-2 hover:bg-slate-100 rounded-full">
             <ArrowLeft className="w-6 h-6" />
           </Link>
-          <div className="relative flex-1">
-            <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400" />
-            <Input 
-              placeholder="Search products..." 
-              className="pl-10 bg-slate-100 border-none rounded-xl"
-              value={searchQuery}
-              onChange={(e) => setSearchQuery(e.target.value)}
-            />
-          </div>
+          <h1 className="font-bold text-lg">New Order</h1>
+        </div>
+        <div className="relative flex-1 max-w-[180px] ml-4">
+          <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400" />
+          <input 
+            type="text" 
+            placeholder="Search..." 
+            className="w-full pl-9 pr-4 py-2 bg-slate-100 rounded-full text-sm outline-none focus:ring-2 ring-blue-500"
+            value={searchQuery}
+            onChange={(e) => setSearchQuery(e.target.value)}
+          />
         </div>
       </header>
 
-      <main className="max-w-lg mx-auto p-4 space-y-4">
-        <div className="grid grid-cols-1 gap-3">
+      {/* Main Grid Area - 3 Columns for Mobile */}
+      <main className="flex-1 overflow-y-auto p-3 pb-40">
+        <div className="grid grid-cols-3 gap-2">
           {filteredProducts.map((product) => (
-            <button 
+            <button
               key={product.id}
               onClick={() => addToCart(product)}
-              className="bg-white p-4 rounded-2xl border border-slate-100 shadow-sm flex justify-between items-center active:bg-blue-50 transition-colors text-left"
+              className="aspect-square bg-white border border-slate-200 rounded-xl p-2 flex flex-col items-center justify-center text-center active:bg-blue-50 active:border-blue-200"
             >
-              <div>
-                <p className="font-bold text-slate-800">{product.name}</p>
-                <p className="text-slate-500 text-xs">{product.category} • {product.stock} in stock</p>
-              </div>
-              <p className="font-bold text-blue-600">₱{product.price.toFixed(2)}</p>
+              <span className="text-2xl mb-1">{product.category === 'Drinks' ? '🥤' : product.category === 'Rice' ? '🍚' : '📦'}</span>
+              <span className="text-[10px] font-bold text-slate-800 line-clamp-2 leading-tight uppercase">{product.name}</span>
+              <span className="text-xs font-black text-blue-600 mt-1">₱{product.price}</span>
             </button>
           ))}
         </div>
       </main>
 
-      {/* Cart Sheet / Bottom Drawer UI */}
-      {cart.length > 0 && (
-        <div className="fixed bottom-0 left-0 right-0 bg-white border-t rounded-t-[2rem] shadow-2xl z-30 max-w-lg mx-auto overflow-hidden">
-          <div className="p-4 max-h-[60vh] overflow-y-auto">
-            <div className="flex items-center justify-between mb-4">
-              <h3 className="font-bold text-lg text-slate-800 flex items-center">
-                <ShoppingCart className="w-5 h-5 mr-2 text-blue-600" />
-                Cart ({cart.length})
-              </h3>
-              <Button variant="ghost" size="sm" onClick={() => setCart([])} className="text-red-500 hover:text-red-600">
-                Clear
-              </Button>
-            </div>
-
-            <div className="space-y-4 mb-6">
-              {cart.map((item) => (
-                <div key={item.id} className="flex items-center justify-between">
-                  <div className="flex-1">
-                    <p className="font-semibold text-sm text-slate-800 line-clamp-1">{item.name}</p>
-                    <p className="text-slate-500 text-xs">₱{item.price.toFixed(2)} / pc</p>
-                  </div>
-                  <div className="flex items-center space-x-3 ml-4">
-                    <div className="flex items-center bg-slate-100 rounded-lg p-1">
-                      <button 
-                        onClick={() => updateQuantity(item.id, -1)}
-                        className="p-1 hover:bg-white rounded-md transition-colors"
-                      >
-                        <Minus className="w-4 h-4 text-slate-600" />
-                      </button>
-                      <span className="w-8 text-center font-bold text-sm">{item.quantity}</span>
-                      <button 
-                        onClick={() => updateQuantity(item.id, 1)}
-                        className="p-1 hover:bg-white rounded-md transition-colors"
-                      >
-                        <Plus className="w-4 h-4 text-slate-600" />
-                      </button>
-                    </div>
-                    <button onClick={() => removeFromCart(item.id)} className="p-2 text-slate-400">
-                      <Trash2 className="w-4 h-4" />
-                    </button>
-                  </div>
+      {/* Sticky Bottom Cart & Checkout */}
+      <div className="fixed bottom-0 left-0 right-0 bg-white border-t-2 border-slate-200 p-4 shadow-2xl z-20">
+        {cart.length > 0 && (
+          <div className="max-h-32 overflow-y-auto mb-4 space-y-2 border-b border-slate-100 pb-2">
+            {cart.map((item) => (
+              <div key={item.id} className="flex items-center justify-between">
+                <div className="flex flex-col">
+                  <span className="text-xs font-bold uppercase">{item.name}</span>
+                  <span className="text-[10px] text-slate-500">₱{item.price} ea</span>
                 </div>
-              ))}
-            </div>
-
-            <div className="pt-4 border-t space-y-4">
-              <div className="flex justify-between items-center">
-                <span className="text-slate-500">Total Amount</span>
-                <span className="text-2xl font-black text-slate-900">₱{total.toFixed(2)}</span>
+                <div className="flex items-center gap-3 bg-slate-100 rounded-lg px-2 py-1">
+                  <button onClick={() => updateQuantity(item.id, -1)} className="p-1"><Minus className="w-3 h-3" /></button>
+                  <span className="text-xs font-bold w-4 text-center">{item.quantity}</span>
+                  <button onClick={() => updateQuantity(item.id, 1)} className="p-1"><Plus className="w-3 h-3" /></button>
+                </div>
               </div>
-              <Button 
-                className="w-full bg-blue-600 hover:bg-blue-700 text-white py-6 rounded-2xl text-lg font-bold shadow-lg shadow-blue-100"
-                onClick={() => setShowCheckout(true)}
-              >
-                Checkout
-              </Button>
-            </div>
+            ))}
+          </div>
+        )}
+        
+        <div className="flex items-center justify-between mb-4">
+          <div className="flex flex-col">
+            <span className="text-xs text-slate-500 uppercase font-bold tracking-tighter">Total Amount</span>
+            <span className="text-3xl font-black text-slate-900">₱{total.toFixed(2)}</span>
+          </div>
+          <div className="text-right">
+            <span className="text-xs text-slate-400 font-bold">{cart.length} items</span>
           </div>
         </div>
-      )}
 
-      {/* Basic Receipt/Success Modal */}
-      {showCheckout && (
-        <div className="fixed inset-0 bg-black/50 z-50 flex items-end sm:items-center justify-center p-4">
-          <div className="bg-white rounded-3xl w-full max-w-sm p-6 space-y-6">
-            <div className="flex flex-col items-center text-center">
-              <div className="w-16 h-16 bg-green-100 rounded-full flex items-center justify-center mb-4">
-                <CheckCircle2 className="w-10 h-10 text-green-600" />
-              </div>
-              <h2 className="text-2xl font-bold text-slate-900">Payment Successful</h2>
-              <p className="text-slate-500">Transaction #1043</p>
+        <button
+          disabled={cart.length === 0}
+          onClick={() => setIsCheckout(true)}
+          className="w-full bg-blue-600 disabled:bg-slate-300 text-white py-5 rounded-2xl font-black text-xl shadow-lg active:scale-[0.98] transition-all"
+        >
+          CHECKOUT
+        </button>
+      </div>
+
+      {/* Checkout Selection - Full Screen Overlay */}
+      {isCheckout && (
+        <div className="fixed inset-0 bg-slate-900/90 z-50 p-6 flex flex-col justify-end">
+          <div className="bg-white rounded-3xl p-6 w-full max-w-md mx-auto">
+            <div className="flex justify-between items-center mb-6">
+              <h2 className="text-xl font-black">SELECT PAYMENT</h2>
+              <button onClick={() => setIsCheckout(false)} className="p-2"><X className="w-6 h-6" /></button>
             </div>
-
-            <div className="border-y border-dashed py-4 space-y-2">
-              <div className="flex justify-between text-sm">
-                <span className="text-slate-500">Total Paid</span>
-                <span className="font-bold text-slate-900">₱{total.toFixed(2)}</span>
-              </div>
-              <div className="flex justify-between text-sm">
-                <span className="text-slate-500">Payment Method</span>
-                <span className="font-bold text-slate-900 uppercase">Cash</span>
-              </div>
-            </div>
-
-            <div className="space-y-3">
-              <Button className="w-full bg-slate-900 py-6 rounded-2xl font-bold" onClick={() => {
-                setCart([]);
-                setShowCheckout(false);
-              }}>
-                Done
-              </Button>
-              <Button variant="outline" className="w-full py-6 rounded-2xl font-bold border-slate-200">
-                Print Receipt
-              </Button>
+            
+            <div className="grid grid-cols-2 gap-4">
+              <button onClick={() => handleCheckout('cash')} className="aspect-square border-4 border-green-500 rounded-3xl flex flex-col items-center justify-center gap-2 active:bg-green-50">
+                <span className="text-3xl">💵</span>
+                <span className="font-bold text-green-700">CASH</span>
+              </button>
+              <button onClick={() => handleCheckout('e-wallet')} className="aspect-square border-4 border-blue-500 rounded-3xl flex flex-col items-center justify-center gap-2 active:bg-blue-50">
+                <span className="text-3xl">📱</span>
+                <span className="font-bold text-blue-700 uppercase">QR PH</span>
+              </button>
+              <button onClick={() => handleCheckout('card')} className="aspect-square border-4 border-purple-500 rounded-3xl flex flex-col items-center justify-center gap-2 active:bg-purple-50">
+                <span className="text-3xl">💳</span>
+                <span className="font-bold text-purple-700">CARD</span>
+              </button>
+              <button onClick={() => handleCheckout('maya')} className="aspect-square border-4 border-slate-900 rounded-3xl flex flex-col items-center justify-center gap-2 active:bg-slate-50">
+                <span className="text-3xl">🖥️</span>
+                <span className="font-bold text-slate-900">MAYA</span>
+              </button>
             </div>
           </div>
         </div>
