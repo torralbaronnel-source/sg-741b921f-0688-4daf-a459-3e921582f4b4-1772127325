@@ -7,16 +7,16 @@ import {
 } from "lucide-react";
 import Link from "next/link";
 import { INITIAL_PRODUCTS } from "@/lib/mock-data";
-import { Product, CartItem, Transaction, PaymentMethod } from "@/types/pos";
+import { Product, SaleItem, Sale, PaymentMethod } from "@/types/pos";
 
 export default function POSPage() {
   const [products, setProducts] = useState<Product[]>([]);
-  const [cart, setCart] = useState<CartItem[]>([]);
+  const [cart, setCart] = useState<SaleItem[]>([]);
   const [searchQuery, setSearchQuery] = useState("");
   const [isCheckout, setIsCheckout] = useState(false);
   const [activePayment, setActivePayment] = useState<PaymentMethod | null>(null);
   const [isReceipt, setIsReceipt] = useState(false);
-  const [lastTransaction, setLastTransaction] = useState<Transaction | null>(null);
+  const [lastTransaction, setLastTransaction] = useState<Sale | null>(null);
   
   // Payment States
   const [cashAmount, setCashAmount] = useState("");
@@ -45,7 +45,7 @@ export default function POSPage() {
     return products.filter((p) =>
       p.name.toLowerCase().includes(searchQuery.toLowerCase())
     );
-  }, [searchQuery]);
+  }, [products, searchQuery]);
 
   // Cart logic
   const addToCart = (product: Product, quantity: number = 1) => {
@@ -53,10 +53,10 @@ export default function POSPage() {
       const existing = prev.find((item) => item.id === product.id);
       if (existing) {
         return prev.map((item) =>
-          item.id === product.id ? { ...item, quantity: item.quantity + quantity } : item
+          item.id === product.id ? { ...item, quantity: item.quantity + quantity, total: (item.quantity + quantity) * product.price } : item
         );
       }
-      return [...prev, { ...product, quantity }];
+      return [...prev, { ...product, quantity, total: quantity * product.price }];
     });
   };
 
@@ -64,62 +64,93 @@ export default function POSPage() {
   const handleTurboTap = (e: React.MouseEvent | React.TouchEvent, product: Product) => {
     e.preventDefault();
     addToCart(product, 5);
-    // Simple vibration feedback if supported
-    if (window.navigator.vibrate) window.navigator.vibrate(50);
+    // Simple haptic feedback
+    if (typeof window !== "undefined" && window.navigator.vibrate) {
+      window.navigator.vibrate(50);
+    }
   };
 
   const updateQuantity = (id: string, delta: number) => {
     setCart((prev) =>
       prev
-        .map((item) =>
-          item.id === id ? { ...item, quantity: Math.max(0, item.quantity + delta) } : item
-        )
+        .map((item) => {
+          if (item.id === id) {
+            const newQty = Math.max(0, item.quantity + delta);
+            return { ...item, quantity: newQty, total: newQty * item.price };
+          }
+          return item;
+        })
         .filter((item) => item.quantity > 0)
     );
   };
 
-  const total = useMemo(() => {
-    return cart.reduce((sum, item) => sum + item.price * item.quantity, 0);
-  }, [cart]);
+  const calculateTotals = () => {
+    let subtotal = 0;
+    let taxTotal = 0;
+    let discountTotal = 0;
+
+    cart.forEach(item => {
+      const itemBaseTotal = item.price * item.quantity;
+      const itemTax = (itemBaseTotal * (item.taxRate || 0)) / 100;
+      const itemDiscount = (item.discount || 0) * item.quantity;
+      
+      subtotal += itemBaseTotal;
+      taxTotal += itemTax;
+      discountTotal += itemDiscount;
+    });
+
+    const total = Math.max(0, subtotal + taxTotal - discountTotal);
+    return { subtotal, taxTotal, discountTotal, total };
+  };
+
+  const totals = useMemo(calculateTotals, [cart]);
 
   // Mock Maya Terminal Check
   const checkMayaTerminal = () => {
     setIsConnecting(true);
-    // Simulate high-speed BT handshake
     setTimeout(() => {
-      const success = Math.random() > 0.3; // 70% success rate for mock
+      const success = Math.random() > 0.3;
       setMayaConnected(success);
       setIsConnecting(false);
       if (success) {
-        setActivePayment("maya_terminal");
+        setActivePayment("MAYA_TERMINAL");
       }
     }, 800);
   };
 
-  const completeSale = (method: PaymentMethod, paid: number = total, ref: string = "") => {
+  const completeSale = (method: PaymentMethod, paid: number = totals.total, ref: string = "") => {
     const orderNumber = Math.floor(1000 + Math.random() * 9000);
-    const transaction: Transaction = {
+    const transaction: Sale = {
       id: `ORD-${orderNumber}`,
+      orderNo: orderNumber.toString(),
       items: [...cart],
-      total,
+      total: totals.total,
+      subtotal: totals.subtotal,
+      taxTotal: totals.taxTotal,
+      discountTotal: totals.discountTotal,
       paymentMethod: method,
       amountPaid: paid,
-      change: Math.max(0, paid - total),
+      change: Math.max(0, paid - totals.total),
       timestamp: Date.now(),
       referenceNo: ref
     };
 
-    // Auto-decrement inventory (In-memory for MVP)
-    cart.forEach(item => {
-      const product = products.find(p => p.id === item.id);
-      if (product) product.stock -= item.quantity;
+    // Auto-decrement inventory
+    const updatedProducts = products.map(p => {
+      const cartItem = cart.find(item => item.id === p.id);
+      if (cartItem) {
+        return { ...p, stock: p.stock - cartItem.quantity };
+      }
+      return p;
     });
 
+    setProducts(updatedProducts);
     setLastTransaction(transaction);
     setCart([]);
     setIsCheckout(false);
     setActivePayment(null);
     setIsReceipt(true);
+    setCashAmount("");
   };
 
   if (isReceipt && lastTransaction) {
@@ -166,7 +197,6 @@ export default function POSPage() {
     <div className="flex flex-col h-screen bg-slate-50 overflow-hidden select-none">
       <SEO title="POS | PocketPOS PH" />
       
-      {/* Search Header */}
       <header className="bg-white border-b border-slate-200 p-4 flex items-center gap-3">
         <Link href="/" className="p-2 -ml-2"><ArrowLeft className="w-6 h-6" /></Link>
         <div className="relative flex-1">
@@ -181,7 +211,6 @@ export default function POSPage() {
         </div>
       </header>
 
-      {/* 3-Column Mobile Grid */}
       <main className="flex-1 overflow-y-auto p-2 pb-40">
         <div className="grid grid-cols-3 gap-2">
           {filteredProducts.map((product) => (
@@ -193,21 +222,20 @@ export default function POSPage() {
             >
               <span className="text-2xl mb-1">{product.emoji || '📦'}</span>
               <span className="text-[10px] font-bold uppercase leading-tight line-clamp-2 mb-1">{product.name}</span>
-              <span className="text-xs font-black text-blue-600 active:text-white">₱{product.price}</span>
+              <span className="text-xs font-black text-blue-600">₱{product.price}</span>
             </button>
           ))}
         </div>
       </main>
 
-      {/* Sticky Bottom Bar */}
       <div className="fixed bottom-0 left-0 right-0 bg-white border-t-2 border-slate-200 p-4 shadow-2xl z-20">
         <div className="flex items-center justify-between mb-4 px-2">
           <div className="flex flex-col">
             <span className="text-[10px] text-slate-400 font-black uppercase tracking-widest">Total Amount</span>
-            <span className="text-3xl font-black text-slate-900">₱{total.toFixed(2)}</span>
+            <span className="text-3xl font-black text-slate-900">₱{totals.total.toFixed(2)}</span>
           </div>
           <div className="bg-slate-100 px-3 py-1 rounded-full text-xs font-bold text-slate-600">
-            {cart.length} ITEMS
+            {cart.reduce((acc, item) => acc + item.quantity, 0)} ITEMS
           </div>
         </div>
         <button
@@ -219,7 +247,6 @@ export default function POSPage() {
         </button>
       </div>
 
-      {/* Payment Selection Overlay */}
       {isCheckout && !activePayment && (
         <div className="fixed inset-0 bg-slate-900/95 z-50 p-6 flex flex-col justify-end">
           <div className="bg-white rounded-3xl p-6 w-full max-w-md mx-auto">
@@ -230,7 +257,7 @@ export default function POSPage() {
             
             <div className="grid grid-cols-2 gap-4">
               <button 
-                onClick={() => setActivePayment('cash')}
+                onClick={() => setActivePayment('CASH')}
                 className="h-32 border-4 border-green-500 rounded-3xl flex flex-col items-center justify-center gap-2 active:bg-green-50"
               >
                 <Banknote className="w-8 h-8 text-green-600" />
@@ -238,7 +265,7 @@ export default function POSPage() {
               </button>
               
               <button 
-                onClick={() => setActivePayment('gcash_maya')}
+                onClick={() => setActivePayment('GCASH_MAYA')}
                 className="h-32 border-4 border-blue-500 rounded-3xl flex flex-col items-center justify-center gap-2 active:bg-blue-50"
               >
                 <Smartphone className="w-8 h-8 text-blue-600" />
@@ -263,7 +290,7 @@ export default function POSPage() {
               </button>
 
               <button 
-                onClick={() => setActivePayment('card')}
+                onClick={() => setActivePayment('CARD')}
                 className="h-32 border-4 border-purple-500 rounded-3xl flex flex-col items-center justify-center gap-2 active:bg-purple-50"
               >
                 <CreditCard className="w-8 h-8 text-purple-600" />
@@ -274,8 +301,7 @@ export default function POSPage() {
         </div>
       )}
 
-      {/* Cash Payment Flow */}
-      {activePayment === 'cash' && (
+      {activePayment === 'CASH' && (
         <div className="fixed inset-0 bg-white z-[60] p-6 flex flex-col">
           <div className="flex justify-between items-center mb-8">
             <h2 className="text-2xl font-black">CASH PAYMENT</h2>
@@ -283,7 +309,7 @@ export default function POSPage() {
           </div>
           <div className="text-center mb-8">
             <p className="text-slate-400 font-bold uppercase text-xs">Total Due</p>
-            <p className="text-5xl font-black">₱{total.toFixed(2)}</p>
+            <p className="text-5xl font-black">₱{totals.total.toFixed(2)}</p>
           </div>
           <input 
             type="number" 
@@ -304,15 +330,15 @@ export default function POSPage() {
               </button>
             ))}
             <button 
-              onClick={() => setCashAmount(total.toString())}
+              onClick={() => setCashAmount(totals.total.toString())}
               className="bg-blue-100 text-blue-700 py-4 rounded-xl font-bold col-span-2 active:bg-blue-200"
             >
               EXACT AMOUNT
             </button>
           </div>
           <button 
-            disabled={!cashAmount || parseFloat(cashAmount) < total}
-            onClick={() => completeSale('cash', parseFloat(cashAmount))}
+            disabled={!cashAmount || parseFloat(cashAmount) < totals.total}
+            onClick={() => completeSale('CASH', parseFloat(cashAmount))}
             className="mt-auto w-full bg-green-600 text-white py-6 rounded-2xl font-black text-2xl active:scale-95 transition-all disabled:bg-slate-200"
           >
             CONFIRM PAID
@@ -320,8 +346,7 @@ export default function POSPage() {
         </div>
       )}
 
-      {/* GCash/Maya QR Flow */}
-      {activePayment === 'gcash_maya' && (
+      {activePayment === 'GCASH_MAYA' && (
         <div className="fixed inset-0 bg-white z-[60] p-6 flex flex-col items-center">
           <div className="w-full flex justify-between items-center mb-8">
             <h2 className="text-2xl font-black">GCASH / MAYA</h2>
@@ -329,7 +354,6 @@ export default function POSPage() {
           </div>
           <p className="font-bold text-slate-500 mb-2 uppercase text-xs">Customer Scans QR PH</p>
           <div className="aspect-square w-full max-w-[280px] bg-white border-8 border-slate-900 p-4 mb-4 flex items-center justify-center relative">
-            {/* Simple Mock QR */}
             <div className="w-full h-full bg-slate-900 flex items-center justify-center">
               <Smartphone className="w-20 h-20 text-white" />
             </div>
@@ -337,13 +361,13 @@ export default function POSPage() {
               <span className="bg-white px-4 py-2 font-black border-4 border-slate-900 uppercase">QR PH</span>
             </div>
           </div>
-          <p className="text-3xl font-black mb-8 italic">₱{total.toFixed(2)}</p>
+          <p className="text-3xl font-black mb-8 italic">₱{totals.total.toFixed(2)}</p>
           <div className="w-full bg-blue-50 p-4 rounded-2xl border-2 border-blue-100 mb-8">
             <p className="text-[10px] font-black text-blue-600 uppercase mb-1">Status</p>
             <p className="text-sm font-bold text-blue-900">Waiting for customer scan...</p>
           </div>
           <button 
-            onClick={() => completeSale('gcash_maya')}
+            onClick={() => completeSale('GCASH_MAYA')}
             className="mt-auto w-full bg-blue-600 text-white py-6 rounded-2xl font-black text-2xl active:scale-95 transition-all"
           >
             CONFIRM RECEIVED
@@ -351,8 +375,7 @@ export default function POSPage() {
         </div>
       )}
 
-      {/* Maya Terminal Link Flow */}
-      {activePayment === 'maya_terminal' && (
+      {activePayment === 'MAYA_TERMINAL' && (
         <div className="fixed inset-0 bg-white z-[60] p-6 flex flex-col items-center">
           <div className="w-full flex justify-between items-center mb-8">
             <h2 className="text-2xl font-black">MAYA TERMINAL</h2>
@@ -369,7 +392,7 @@ export default function POSPage() {
                   <h3 className="text-2xl font-black text-slate-900">TERMINAL READY</h3>
                   <p className="text-slate-500 font-bold">Waiting for card/swipe...</p>
                 </div>
-                <p className="text-5xl font-black text-slate-900">₱{total.toFixed(2)}</p>
+                <p className="text-5xl font-black text-slate-900">₱{totals.total.toFixed(2)}</p>
               </div>
             ) : (
               <div className="space-y-6">
@@ -392,12 +415,41 @@ export default function POSPage() {
 
           {mayaConnected && (
             <button 
-              onClick={() => completeSale('maya_terminal')}
+              onClick={() => completeSale('MAYA_TERMINAL')}
               className="w-full bg-slate-900 text-white py-6 rounded-2xl font-black text-2xl active:scale-95 transition-all"
             >
               FINALIZE SALE
             </button>
           )}
+        </div>
+      )}
+
+      {activePayment === 'CARD' && (
+        <div className="fixed inset-0 bg-white z-[60] p-6 flex flex-col">
+          <div className="flex justify-between items-center mb-8">
+            <h2 className="text-2xl font-black">CARD PAYMENT</h2>
+            <button onClick={() => setActivePayment(null)} className="p-2"><X className="w-6 h-6" /></button>
+          </div>
+          <div className="text-center mb-8">
+            <p className="text-slate-400 font-bold uppercase text-xs">Total Due</p>
+            <p className="text-5xl font-black">₱{totals.total.toFixed(2)}</p>
+          </div>
+          <div className="space-y-4">
+            <div className="grid gap-2">
+              <label className="text-xs font-bold uppercase text-slate-400 px-1">Reference Number (Optional)</label>
+              <input 
+                type="text" 
+                placeholder="RRN / Auth Code" 
+                className="w-full text-2xl font-black border-b-4 border-slate-900 py-4 outline-none"
+              />
+            </div>
+          </div>
+          <button 
+            onClick={() => completeSale('CARD')}
+            className="mt-auto w-full bg-purple-600 text-white py-6 rounded-2xl font-black text-2xl active:scale-95 transition-all"
+          >
+            CONFIRM CARD PAID
+          </button>
         </div>
       )}
 
