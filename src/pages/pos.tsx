@@ -3,33 +3,38 @@ import { SEO } from "@/components/SEO";
 import { 
   Search, 
   ShoppingCart, 
-  ChevronLeft, 
-  Trash2, 
+  ChevronRight, 
   Plus, 
   Minus, 
+  Trash2, 
   CheckCircle2, 
-  Receipt,
-  Printer,
-  X,
-  CreditCard,
-  Banknote,
-  QrCode,
-  Smartphone
+  ArrowLeft,
+  Tag,
+  Package
 } from "lucide-react";
-import { motion, AnimatePresence } from "framer-motion";
-import { useInView } from "react-intersection-observer";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Badge } from "@/components/ui/badge";
+import { Card } from "@/components/ui/card";
 import { 
-  Dialog, 
-  DialogContent, 
-  DialogHeader, 
-  DialogTitle, 
-  DialogDescription 
+  Sheet, 
+  SheetContent, 
+  SheetHeader, 
+  SheetTitle, 
+  SheetTrigger 
+} from "@/components/ui/sheet";
+import {
+  Dialog,
+  DialogContent,
+  DialogHeader,
+  DialogTitle,
 } from "@/components/ui/dialog";
+import { ScrollArea } from "@/components/ui/scroll-area";
+import { useToast } from "@/hooks/use-toast";
+import { motion, AnimatePresence } from "framer-motion";
+import { Product, CartItem, PaymentMethod, Sale } from "@/types/pos";
 import { MOCK_PRODUCTS } from "@/lib/mock-data";
-import { Product, CartItem, Sale, PaymentMethod } from "@/types/pos";
+import { useInView } from "react-intersection-observer";
 import Link from "next/link";
 
 const ITEMS_PER_PAGE = 20;
@@ -38,39 +43,49 @@ export default function POSPage() {
   const [searchTerm, setSearchTerm] = useState("");
   const [selectedCategory, setSelectedCategory] = useState("All");
   const [cart, setCart] = useState<CartItem[]>([]);
-  const [isCartOpen, setIsCartOpen] = useState(false);
-  const [visibleItemsCount, setVisibleItemsCount] = useState(ITEMS_PER_PAGE);
   const [isCheckoutOpen, setIsCheckoutOpen] = useState(false);
-  const [paymentSuccess, setPaymentSuccess] = useState<Sale | null>(null);
-
+  const [lastSale, setLastSale] = useState<Sale | null>(null);
+  const [visibleCount, setVisibleCount] = useState(ITEMS_PER_PAGE);
+  const { toast } = useToast();
   const { ref, inView } = useInView();
 
-  // Filter products based on search and category
+  // Infinite Scroll Logic
+  useEffect(() => {
+    if (inView) {
+      setVisibleCount(prev => prev + ITEMS_PER_PAGE);
+    }
+  }, [inView]);
+
+  const categories = ["All", ...Array.from(new Set(MOCK_PRODUCTS.map(p => p.category)))];
+
   const filteredProducts = useMemo(() => {
-    return MOCK_PRODUCTS.filter(product => {
-      const matchesSearch = product.name.toLowerCase().includes(searchTerm.toLowerCase());
-      const matchesCategory = selectedCategory === "All" || product.category === selectedCategory;
+    return MOCK_PRODUCTS.filter(p => {
+      const matchesSearch = p.name.toLowerCase().includes(searchTerm.toLowerCase());
+      const matchesCategory = selectedCategory === "All" || p.category === selectedCategory;
       return matchesSearch && matchesCategory;
     });
   }, [searchTerm, selectedCategory]);
 
   const displayedProducts = useMemo(() => {
-    return filteredProducts.slice(0, visibleItemsCount);
-  }, [filteredProducts, visibleItemsCount]);
-
-  useEffect(() => {
-    if (inView && visibleItemsCount < filteredProducts.length) {
-      setVisibleItemsCount(prev => prev + ITEMS_PER_PAGE);
-    }
-  }, [inView, filteredProducts.length, visibleItemsCount]);
-
-  const categories = ["All", ...Array.from(new Set(MOCK_PRODUCTS.map(p => p.category)))];
+    return filteredProducts.slice(0, visibleCount);
+  }, [filteredProducts, visibleCount]);
 
   const addToCart = (product: Product) => {
+    if (product.stock <= 0) {
+      toast({
+        title: "Out of Stock",
+        description: `${product.name} is currently unavailable.`,
+        variant: "destructive",
+      });
+      return;
+    }
+
     setCart(prev => {
       const existing = prev.find(item => item.id === product.id);
       if (existing) {
-        return prev.map(item => item.id === product.id ? { ...item, quantity: item.quantity + 1 } : item);
+        return prev.map(item => 
+          item.id === product.id ? { ...item, quantity: item.quantity + 1 } : item
+        );
       }
       return [...prev, { ...product, quantity: 1 }];
     });
@@ -86,13 +101,17 @@ export default function POSPage() {
     }).filter(item => item.quantity > 0));
   };
 
-  const total = cart.reduce((sum, item) => sum + (item.price * item.quantity), 0);
+  const subtotal = cart.reduce((sum, item) => sum + (item.price * item.quantity), 0);
+  const totalItems = cart.reduce((sum, item) => sum + item.quantity, 0);
 
   const handleCheckout = (method: PaymentMethod) => {
     const newSale: Sale = {
       id: Math.random().toString(36).substr(2, 9),
-      orderNo: `POS-${Math.floor(1000 + Math.random() * 9000)}`,
-      total,
+      orderNo: `ORD-${Date.now().toString().slice(-6)}`,
+      total: subtotal,
+      subtotal: subtotal,
+      tax: 0,
+      discount: 0,
       items: cart.map(item => ({
         id: item.id,
         name: item.name,
@@ -105,235 +124,361 @@ export default function POSPage() {
       createdAt: new Date().toISOString()
     };
 
-    setPaymentSuccess(newSale);
+    setLastSale(newSale);
     setCart([]);
     setIsCheckoutOpen(false);
-    setIsCartOpen(false);
+    
+    // In a real app, we'd save this to a database/localStorage here
+    const savedSales = JSON.parse(localStorage.getItem("pos_sales") || "[]");
+    localStorage.setItem("pos_sales", JSON.stringify([newSale, ...savedSales]));
   };
 
   return (
-    <div className="min-h-screen bg-slate-50 pb-20 overflow-hidden flex flex-col">
-      <SEO title="Terminal | PocketPOS PH" />
+    <div className="flex flex-col h-screen bg-[#F5F6F8] overflow-hidden">
+      <SEO title="POS - PocketPOS PH" />
 
-      {/* Modern Header */}
-      <header className="bg-white/70 backdrop-blur-xl sticky top-0 z-30 px-4 py-3 border-b border-slate-100">
+      {/* Header */}
+      <header className="bg-white border-b px-4 py-3 flex items-center justify-between sticky top-0 z-10">
         <div className="flex items-center gap-3">
-          <Link href="/" className="p-2 -ml-2 tap-active">
-            <ChevronLeft className="w-6 h-6 text-slate-900" />
+          <Link href="/">
+            <Button variant="ghost" size="icon" className="rounded-full">
+              <ArrowLeft className="w-5 h-5" />
+            </Button>
           </Link>
-          <div className="relative flex-1 group">
-            <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400 group-focus-within:text-blue-500 transition-colors" />
+          <h1 className="font-bold text-lg text-slate-900">Ticket</h1>
+          <Badge variant="secondary" className="bg-blue-50 text-blue-600 border-blue-100">
+            {totalItems} items
+          </Badge>
+        </div>
+        <div className="flex items-center gap-2">
+          <div className="relative hidden sm:block">
+            <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400" />
             <Input 
               placeholder="Search products..." 
-              className="pl-10 h-11 bg-slate-100/50 border-none rounded-2xl focus-visible:ring-2 focus-visible:ring-blue-500/20 text-base"
+              className="pl-9 bg-slate-100 border-none w-64 h-9 rounded-lg"
               value={searchTerm}
               onChange={(e) => setSearchTerm(e.target.value)}
             />
           </div>
-        </div>
-
-        {/* Categories Scroller */}
-        <div className="flex gap-2 overflow-x-auto py-3 no-scrollbar -mx-4 px-4 mt-1">
-          {categories.map(cat => (
-            <button
-              key={cat}
-              onClick={() => {
-                setSelectedCategory(cat);
-                setVisibleItemsCount(ITEMS_PER_PAGE);
-              }}
-              className={`px-5 py-2 rounded-full text-sm font-bold whitespace-nowrap transition-all tap-active ${
-                selectedCategory === cat 
-                ? "bg-slate-900 text-white shadow-lg shadow-slate-200 scale-105" 
-                : "bg-white text-slate-500 border border-slate-100 hover:bg-slate-50"
-              }`}
-            >
-              {cat}
-            </button>
-          ))}
+          <Button variant="ghost" size="icon" className="rounded-full">
+            <Plus className="w-5 h-5 text-slate-600" />
+          </Button>
         </div>
       </header>
 
-      {/* High-Performance Product Grid */}
-      <main className="flex-1 overflow-y-auto px-4 py-4 no-scrollbar">
-        <div className="grid grid-cols-2 gap-3 pb-24">
-          <AnimatePresence mode="popLayout">
-            {displayedProducts.map((product) => (
-              <motion.div
-                layout
-                key={product.id}
-                initial={{ opacity: 0, scale: 0.9 }}
-                animate={{ opacity: 1, scale: 1 }}
-                exit={{ opacity: 0, scale: 0.9 }}
-                whileTap={{ scale: 0.96 }}
-                onClick={() => addToCart(product)}
-                className="glass-card rounded-[2rem] p-4 flex flex-col items-center text-center relative overflow-hidden active:bg-blue-50/50 group"
-              >
-                <div className="text-4xl mb-3 transform group-hover:scale-110 transition-transform">{product.emoji}</div>
-                <h3 className="font-bold text-slate-900 text-sm leading-tight line-clamp-2 h-10">{product.name}</h3>
-                <div className="mt-2 text-blue-600 font-black text-base">₱{product.price}</div>
-                
-                {cart.find(item => item.id === product.id) && (
-                  <div className="absolute top-3 right-3 w-6 h-6 bg-blue-600 text-white text-[10px] font-bold rounded-full flex items-center justify-center shadow-lg animate-in zoom-in">
-                    {cart.find(item => item.id === product.id)?.quantity}
-                  </div>
-                )}
-              </motion.div>
-            ))}
-          </AnimatePresence>
-          
-          <div ref={ref} className="col-span-2 h-10 flex items-center justify-center">
-            {visibleItemsCount < filteredProducts.length && (
-              <div className="w-6 h-6 border-2 border-blue-600 border-t-transparent rounded-full animate-spin" />
+      {/* Categories Bar */}
+      <div className="bg-white border-b px-4 py-2 flex gap-2 overflow-x-auto no-scrollbar whitespace-nowrap">
+        {categories.map(cat => (
+          <Button
+            key={cat}
+            variant={selectedCategory === cat ? "default" : "ghost"}
+            size="sm"
+            className={`rounded-full px-4 h-8 text-xs font-medium ${
+              selectedCategory === cat ? "bg-slate-900 text-white" : "text-slate-500"
+            }`}
+            onClick={() => {
+              setSelectedCategory(cat);
+              setVisibleCount(ITEMS_PER_PAGE);
+            }}
+          >
+            {cat}
+          </Button>
+        ))}
+      </div>
+
+      <main className="flex-1 flex overflow-hidden relative">
+        {/* Product Grid - 5 Columns High Density */}
+        <div className="flex-1 overflow-y-auto p-3 no-scrollbar">
+          <div className="grid grid-cols-3 sm:grid-cols-4 md:grid-cols-5 lg:grid-cols-6 gap-2">
+            <AnimatePresence mode="popLayout">
+              {displayedProducts.map((product) => (
+                <motion.div
+                  key={product.id}
+                  layout
+                  initial={{ opacity: 0, scale: 0.9 }}
+                  animate={{ opacity: 1, scale: 1 }}
+                  exit={{ opacity: 0, scale: 0.9 }}
+                  transition={{ duration: 0.2 }}
+                  whileTap={{ scale: 0.95 }}
+                  onClick={() => addToCart(product)}
+                >
+                  <Card className="relative aspect-square flex flex-col items-center justify-center p-2 cursor-pointer hover:shadow-md transition-all border-slate-100 overflow-hidden group">
+                    {/* Discount Badge */}
+                    {product.discount && (
+                      <div className="absolute top-0 right-0 bg-red-500 text-white text-[10px] font-bold px-1.5 py-0.5 rounded-bl-lg flex items-center gap-0.5 z-10">
+                        <Tag className="w-2.5 h-2.5" />
+                        {product.discount}%
+                      </div>
+                    )}
+
+                    {/* Stock Badge */}
+                    <div className={`absolute top-1 left-1 flex items-center gap-1 px-1.5 py-0.5 rounded-full text-[9px] font-medium z-10 ${
+                      product.stock <= 5 ? 'bg-red-50 text-red-600' : 'bg-slate-50 text-slate-500'
+                    }`}>
+                      <Package className="w-2.5 h-2.5" />
+                      {product.stock}
+                    </div>
+
+                    <div className="text-3xl mb-1 group-hover:scale-110 transition-transform">{product.emoji}</div>
+                    <div className="text-[11px] font-semibold text-center leading-tight mb-0.5 text-slate-700 line-clamp-2">
+                      {product.name}
+                    </div>
+                    <div className="flex flex-col items-center">
+                      <span className="text-[12px] font-bold text-slate-900">₱{product.price}</span>
+                      {product.originalPrice && (
+                        <span className="text-[9px] text-slate-400 line-through">₱{product.originalPrice}</span>
+                      )}
+                    </div>
+
+                    {/* Add overlay on hover */}
+                    <div className="absolute inset-0 bg-black/0 group-active:bg-black/5 transition-colors" />
+                  </Card>
+                </motion.div>
+              ))}
+            </AnimatePresence>
+
+            {/* Intersection Observer for Infinite Scroll */}
+            {filteredProducts.length > visibleCount && (
+              <div ref={ref} className="col-span-full h-10 flex items-center justify-center py-4">
+                <div className="w-5 h-5 border-2 border-slate-200 border-t-slate-900 rounded-full animate-spin" />
+              </div>
             )}
           </div>
         </div>
-      </main>
 
-      {/* Floating Modern Cart Bar */}
-      <AnimatePresence>
-        {total > 0 && (
-          <motion.div 
-            initial={{ y: 100, opacity: 0 }}
-            animate={{ y: 0, opacity: 1 }}
-            exit={{ y: 100, opacity: 0 }}
-            className="fixed bottom-6 left-6 right-6 z-40"
-          >
-            <button 
-              onClick={() => setIsCartOpen(true)}
-              className="w-full bg-slate-900 text-white rounded-[2rem] p-4 shadow-2xl shadow-slate-400 flex items-center justify-between tap-active group overflow-hidden"
-            >
-              <div className="flex items-center gap-3">
-                <div className="w-10 h-10 rounded-2xl bg-white/10 flex items-center justify-center">
-                  <ShoppingCart className="w-5 h-5" />
-                </div>
-                <div className="text-left">
-                  <p className="text-[10px] font-bold text-slate-400 uppercase tracking-widest">View Order</p>
-                  <p className="font-black text-lg">₱{total.toFixed(2)}</p>
-                </div>
-              </div>
-              <div className="flex items-center gap-2">
-                <span className="text-xs font-bold text-slate-400">{cart.length} items</span>
-                <div className="w-10 h-10 rounded-full bg-blue-600 flex items-center justify-center group-hover:translate-x-1 transition-transform">
-                  <Plus className="w-5 h-5" />
-                </div>
-              </div>
-            </button>
-          </motion.div>
-        )}
-      </AnimatePresence>
-
-      {/* Cart Drawer - Modern Full Screen */}
-      <Dialog open={isCartOpen} onOpenChange={setIsCartOpen}>
-        <DialogContent className="sm:max-w-md p-0 h-[90vh] rounded-t-[3rem] top-[auto] bottom-0 translate-y-0 border-none glass-card overflow-hidden flex flex-col">
-          <DialogHeader className="px-6 pt-8 pb-4">
-            <div className="flex justify-between items-center">
-              <div>
-                <DialogTitle className="text-2xl font-black text-slate-900">Current Order</DialogTitle>
-                <DialogDescription className="text-slate-500 font-medium">Verify items before payment</DialogDescription>
-              </div>
-              <button onClick={() => setIsCartOpen(false)} className="p-2 bg-slate-100 rounded-full tap-active">
-                <X className="w-5 h-5 text-slate-600" />
-              </button>
-            </div>
-          </DialogHeader>
-
-          <div className="flex-1 overflow-y-auto px-6 space-y-4 no-scrollbar">
-            {cart.map(item => (
-              <motion.div 
-                layout
-                key={item.id}
-                className="flex items-center gap-4 p-4 rounded-3xl bg-slate-50/50 border border-slate-100/50"
-              >
-                <div className="text-3xl">{item.emoji}</div>
-                <div className="flex-1">
-                  <h4 className="font-bold text-slate-900">{item.name}</h4>
-                  <p className="text-blue-600 font-bold text-sm">₱{item.price}</p>
-                </div>
-                <div className="flex items-center bg-white rounded-2xl p-1 shadow-sm border border-slate-100">
-                  <button onClick={() => updateQuantity(item.id, -1)} className="p-2 text-slate-400 tap-active"><Minus className="w-4 h-4" /></button>
-                  <span className="w-8 text-center font-black text-slate-900">{item.quantity}</span>
-                  <button onClick={() => updateQuantity(item.id, 1)} className="p-2 text-blue-600 tap-active"><Plus className="w-4 h-4" /></button>
-                </div>
-              </motion.div>
-            ))}
+        {/* Desktop Sidebar (Ticket) */}
+        <div className="hidden lg:flex w-80 bg-white border-l flex-col shadow-xl z-20">
+          <div className="p-4 border-b flex justify-between items-center bg-slate-50/50">
+            <h2 className="font-bold flex items-center gap-2">
+              Current Ticket
+              <Badge variant="outline" className="bg-white">{totalItems}</Badge>
+            </h2>
+            <Button variant="ghost" size="icon" onClick={() => setCart([])} disabled={cart.length === 0}>
+              <Trash2 className="w-4 h-4 text-slate-400" />
+            </Button>
           </div>
 
-          <div className="p-8 bg-white border-t border-slate-100 rounded-t-[3rem]">
-            <div className="flex justify-between items-center mb-6">
-              <span className="text-slate-500 font-bold">Total Amount</span>
-              <span className="text-3xl font-black text-slate-900">₱{total.toFixed(2)}</span>
+          <ScrollArea className="flex-1 p-4">
+            {cart.length === 0 ? (
+              <div className="h-full flex flex-col items-center justify-center text-slate-400 gap-3 opacity-50 mt-20">
+                <ShoppingCart className="w-12 h-12" />
+                <p className="text-sm font-medium">Ticket is empty</p>
+              </div>
+            ) : (
+              <div className="space-y-4">
+                {cart.map(item => (
+                  <div key={item.id} className="flex justify-between items-start group">
+                    <div className="flex-1 pr-4">
+                      <h3 className="text-sm font-bold text-slate-800 line-clamp-1">{item.name}</h3>
+                      <p className="text-xs text-slate-500">₱{item.price} each</p>
+                    </div>
+                    <div className="flex items-center gap-3">
+                      <div className="flex items-center bg-slate-100 rounded-lg p-1">
+                        <button 
+                          onClick={() => updateQuantity(item.id, -1)}
+                          className="w-6 h-6 flex items-center justify-center hover:bg-white rounded transition-colors"
+                        >
+                          <Minus className="w-3 h-3" />
+                        </button>
+                        <span className="w-6 text-center text-xs font-bold">{item.quantity}</span>
+                        <button 
+                          onClick={() => updateQuantity(item.id, 1)}
+                          className="w-6 h-6 flex items-center justify-center hover:bg-white rounded transition-colors"
+                        >
+                          <Plus className="w-3 h-3" />
+                        </button>
+                      </div>
+                      <span className="text-sm font-bold w-16 text-right">₱{item.price * item.quantity}</span>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            )}
+          </ScrollArea>
+
+          <div className="p-4 bg-slate-50 border-t space-y-3">
+            <div className="space-y-1">
+              <div className="flex justify-between text-xs text-slate-500">
+                <span>Subtotal</span>
+                <span>₱{subtotal}</span>
+              </div>
+              <div className="flex justify-between text-xs text-slate-500">
+                <span>Tax (0%)</span>
+                <span>₱0</span>
+              </div>
+              <div className="flex justify-between text-lg font-black text-slate-900 pt-2 border-t">
+                <span>Total</span>
+                <span>₱{subtotal}</span>
+              </div>
             </div>
             <Button 
-              className="w-full h-16 rounded-[2rem] text-lg font-black bg-blue-600 hover:bg-blue-700 shadow-xl shadow-blue-200 tap-active"
+              className="w-full h-12 text-lg font-bold bg-green-600 hover:bg-green-700 text-white rounded-xl shadow-lg shadow-green-100"
+              disabled={cart.length === 0}
               onClick={() => setIsCheckoutOpen(true)}
             >
-              Select Payment Method
+              CHARGE ₱{subtotal}
+            </Button>
+          </div>
+        </div>
+
+        {/* Mobile Bottom Bar (Ticket Trigger) */}
+        <div className="lg:hidden absolute bottom-0 left-0 right-0 p-4 bg-white/80 backdrop-blur-xl border-t flex gap-3 z-30">
+          <Sheet>
+            <SheetTrigger asChild>
+              <Button variant="outline" className="flex-1 h-12 rounded-xl relative">
+                <ShoppingCart className="w-5 h-5 mr-2" />
+                Ticket
+                {totalItems > 0 && (
+                  <span className="absolute -top-2 -right-2 bg-blue-600 text-white text-[10px] font-bold w-5 h-5 rounded-full flex items-center justify-center border-2 border-white shadow-sm">
+                    {totalItems}
+                  </span>
+                )}
+              </Button>
+            </SheetTrigger>
+            <SheetContent side="bottom" className="h-[80vh] rounded-t-3xl p-0 overflow-hidden flex flex-col">
+              <SheetHeader className="p-4 border-b">
+                <div className="flex items-center justify-between">
+                  <SheetTitle className="font-bold">Current Ticket</SheetTitle>
+                  <Button variant="ghost" size="icon" onClick={() => setCart([])}>
+                    <Trash2 className="w-4 h-4 text-red-500" />
+                  </Button>
+                </div>
+              </SheetHeader>
+              <ScrollArea className="flex-1 p-4">
+                {cart.length === 0 ? (
+                  <div className="h-full flex flex-col items-center justify-center text-slate-400 gap-3 py-20">
+                    <ShoppingCart className="w-12 h-12" />
+                    <p className="text-sm font-medium">Empty</p>
+                  </div>
+                ) : (
+                  <div className="space-y-6">
+                    {cart.map(item => (
+                      <div key={item.id} className="flex justify-between items-center">
+                        <div className="flex-1">
+                          <h3 className="font-bold text-slate-800">{item.name}</h3>
+                          <p className="text-xs text-slate-500">₱{item.price}</p>
+                        </div>
+                        <div className="flex items-center gap-4">
+                          <div className="flex items-center bg-slate-100 rounded-xl p-1">
+                            <button onClick={() => updateQuantity(item.id, -1)} className="p-2"><Minus className="w-4 h-4" /></button>
+                            <span className="w-8 text-center font-bold">{item.quantity}</span>
+                            <button onClick={() => updateQuantity(item.id, 1)} className="p-2"><Plus className="w-4 h-4" /></button>
+                          </div>
+                          <span className="font-bold text-right min-w-[80px]">₱{item.price * item.quantity}</span>
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                )}
+              </ScrollArea>
+              <div className="p-6 bg-slate-50 border-t space-y-4">
+                <div className="flex justify-between text-2xl font-black text-slate-900">
+                  <span>Total</span>
+                  <span>₱{subtotal}</span>
+                </div>
+                <Button 
+                  className="w-full h-14 text-xl font-bold bg-green-600 hover:bg-green-700 text-white rounded-2xl shadow-xl shadow-green-100"
+                  disabled={cart.length === 0}
+                  onClick={() => {
+                    setIsCheckoutOpen(true);
+                  }}
+                >
+                  CHARGE ₱{subtotal}
+                </Button>
+              </div>
+            </SheetContent>
+          </Sheet>
+          
+          <Button 
+            className="flex-[2] h-12 rounded-xl bg-green-600 hover:bg-green-700 text-white font-bold"
+            disabled={cart.length === 0}
+            onClick={() => setIsCheckoutOpen(true)}
+          >
+            CHARGE ₱{subtotal}
+          </Button>
+        </div>
+      </main>
+
+      {/* Checkout Selection Dialog */}
+      <Dialog open={isCheckoutOpen} onOpenChange={setIsCheckoutOpen}>
+        <DialogContent className="sm:max-w-md rounded-3xl">
+          <DialogHeader>
+            <DialogTitle className="text-center text-2xl font-black">Select Payment</DialogTitle>
+          </DialogHeader>
+          <div className="grid grid-cols-2 gap-4 py-4">
+            <Button 
+              variant="outline" 
+              className="h-24 flex flex-col gap-2 rounded-2xl border-2 hover:border-blue-500 hover:bg-blue-50 group transition-all"
+              onClick={() => handleCheckout("CASH")}
+            >
+              <div className="w-10 h-10 rounded-full bg-blue-100 flex items-center justify-center group-hover:scale-110 transition-transform">💵</div>
+              <span className="font-bold">CASH</span>
+            </Button>
+            <Button 
+              variant="outline" 
+              className="h-24 flex flex-col gap-2 rounded-2xl border-2 hover:border-purple-500 hover:bg-purple-50 group transition-all"
+              onClick={() => handleCheckout("QR_PH")}
+            >
+              <div className="w-10 h-10 rounded-full bg-purple-100 flex items-center justify-center group-hover:scale-110 transition-transform">📱</div>
+              <span className="font-bold">QR PH</span>
+            </Button>
+            <Button 
+              variant="outline" 
+              className="h-24 flex flex-col gap-2 rounded-2xl border-2 hover:border-orange-500 hover:bg-orange-50 group transition-all"
+              onClick={() => handleCheckout("CARD")}
+            >
+              <div className="w-10 h-10 rounded-full bg-orange-100 flex items-center justify-center group-hover:scale-110 transition-transform">💳</div>
+              <span className="font-bold">CARD</span>
+            </Button>
+            <Button 
+              variant="outline" 
+              className="h-24 flex flex-col gap-2 rounded-2xl border-2 hover:border-teal-500 hover:bg-teal-50 group transition-all"
+              onClick={() => handleCheckout("MAYA_TERMINAL")}
+            >
+              <div className="w-10 h-10 rounded-full bg-teal-100 flex items-center justify-center group-hover:scale-110 transition-transform">🖥️</div>
+              <span className="font-bold">MAYA TERM</span>
             </Button>
           </div>
         </DialogContent>
       </Dialog>
 
-      {/* Modern Checkout Grid */}
-      <Dialog open={isCheckoutOpen} onOpenChange={setIsCheckoutOpen}>
-        <DialogContent className="sm:max-w-md p-6 rounded-[3rem] border-none glass-card">
-          <DialogHeader className="text-center mb-6">
-            <DialogTitle className="text-2xl font-black">Choose Payment</DialogTitle>
-          </DialogHeader>
-          <div className="grid grid-cols-2 gap-4">
-            {[
-              { id: 'CASH', name: 'Cash', icon: Banknote, color: 'bg-green-500' },
-              { id: 'QR_PH', name: 'QR PH', icon: QrCode, color: 'bg-blue-600' },
-              { id: 'CARD', name: 'Card', icon: CreditCard, color: 'bg-slate-900' },
-              { id: 'MAYA_TERMINAL', name: 'Maya Term', icon: Smartphone, color: 'bg-purple-600' }
-            ].map(method => (
-              <button
-                key={method.id}
-                onClick={() => handleCheckout(method.id as PaymentMethod)}
-                className="glass-card p-6 rounded-[2.5rem] flex flex-col items-center gap-3 tap-active hover:ring-2 hover:ring-blue-500/20"
-              >
-                <div className={`w-12 h-12 rounded-2xl flex items-center justify-center text-white ${method.color} shadow-lg shadow-current/20`}>
-                  <method.icon className="w-6 h-6" />
-                </div>
-                <span className="font-black text-slate-900">{method.name}</span>
-              </button>
-            ))}
+      {/* Success Receipt Dialog */}
+      <Dialog open={!!lastSale} onOpenChange={() => setLastSale(null)}>
+        <DialogContent className="sm:max-w-[400px] p-0 overflow-hidden bg-slate-50 border-none rounded-3xl">
+          <div className="p-8 flex flex-col items-center text-center bg-white">
+            <div className="w-20 h-20 bg-green-100 text-green-600 rounded-full flex items-center justify-center mb-6 animate-bounce">
+              <CheckCircle2 className="w-12 h-12" />
+            </div>
+            <h2 className="text-3xl font-black text-slate-900 mb-2">PAID!</h2>
+            <p className="text-slate-500 font-medium mb-1">Order {lastSale?.orderNo}</p>
+            <div className="text-4xl font-black text-slate-900 mt-4">
+              ₱{lastSale?.total}
+            </div>
           </div>
-        </DialogContent>
-      </Dialog>
 
-      {/* Realistic Digital Receipt */}
-      <Dialog open={!!paymentSuccess} onOpenChange={() => setPaymentSuccess(null)}>
-        <DialogContent className="sm:max-w-md p-0 rounded-[3rem] border-none overflow-hidden glass-card">
-          <div className="bg-green-500 p-10 text-center text-white">
-            <motion.div 
-              initial={{ scale: 0 }} 
-              animate={{ scale: 1 }} 
-              className="w-20 h-20 bg-white/20 rounded-full flex items-center justify-center mx-auto mb-4 backdrop-blur-md"
-            >
-              <CheckCircle2 className="w-10 h-10" />
-            </motion.div>
-            <h2 className="text-3xl font-black">Paid Successfully!</h2>
-            <p className="opacity-80 font-medium">Order {paymentSuccess?.orderNo}</p>
-          </div>
-          
-          <div className="p-8 space-y-6">
-            <div className="bg-slate-50/50 rounded-3xl p-6 border border-slate-100">
-              <div className="flex justify-between items-center mb-2">
-                <span className="text-slate-500 font-bold uppercase text-[10px] tracking-widest">Total Paid</span>
-                <span className="text-2xl font-black text-slate-900">₱{paymentSuccess?.total.toFixed(2)}</span>
+          <div className="p-6 space-y-4">
+            <div className="bg-white rounded-2xl p-4 shadow-sm space-y-3">
+              <div className="flex justify-between text-sm">
+                <span className="text-slate-400">Payment</span>
+                <span className="font-bold text-slate-900">{lastSale?.paymentMethod}</span>
               </div>
-              <div className="flex justify-between items-center">
-                <span className="text-slate-500 font-bold uppercase text-[10px] tracking-widest">Method</span>
-                <Badge className="bg-slate-900 text-white font-bold">{paymentSuccess?.paymentMethod}</Badge>
+              <div className="flex justify-between text-sm">
+                <span className="text-slate-400">Date</span>
+                <span className="font-bold text-slate-900">
+                  {lastSale ? new Date(lastSale.timestamp).toLocaleTimeString() : ''}
+                </span>
               </div>
             </div>
 
-            <div className="grid grid-cols-2 gap-4">
-              <Button variant="outline" className="h-14 rounded-2xl font-bold border-slate-200 tap-active">
-                <Printer className="w-4 h-4 mr-2" /> Print
+            <div className="grid grid-cols-2 gap-3">
+              <Button variant="outline" className="h-12 rounded-xl font-bold border-2">
+                PRINT
               </Button>
-              <Button className="h-14 rounded-2xl font-bold bg-slate-900 text-white tap-active" onClick={() => setPaymentSuccess(null)}>
-                New Sale
+              <Button 
+                className="h-12 rounded-xl font-bold bg-slate-900 text-white"
+                onClick={() => setLastSale(null)}
+              >
+                DONE
               </Button>
             </div>
           </div>

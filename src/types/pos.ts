@@ -2,11 +2,12 @@ export interface Product {
   id: string;
   name: string;
   price: number;
+  originalPrice?: number;
+  discount?: number;
   stock: number;
   category: string;
   emoji: string;
   taxRate?: number;
-  discount?: number;
 }
 
 export interface CartItem extends Product {
@@ -20,6 +21,9 @@ export interface Sale {
   id: string;
   orderNo: string;
   total: number;
+  subtotal: number;
+  tax: number;
+  discount: number;
   items: {
     id: string;
     name: string;

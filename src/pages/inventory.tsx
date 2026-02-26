@@ -6,7 +6,7 @@ import {
 } from "lucide-react";
 import Link from "next/link";
 import { Product } from "@/types/pos";
-import { INITIAL_PRODUCTS } from "@/lib/mock-data";
+import { MOCK_PRODUCTS } from "@/lib/mock-data";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { 
@@ -15,19 +15,10 @@ import {
 } from "@/components/ui/dialog";
 
 export default function InventoryPage() {
-  const [products, setProducts] = useState<Product[]>([]);
+  const [products, setProducts] = useState<Product[]>(MOCK_PRODUCTS);
   const [search, setSearch] = useState("");
   const [editingProduct, setEditingProduct] = useState<Product | null>(null);
   const [isDialogOpen, setIsDialogOpen] = useState(false);
-
-  useEffect(() => {
-    const saved = localStorage.getItem("pocketpos_products");
-    if (saved) {
-      setProducts(JSON.parse(saved));
-    } else {
-      setProducts(INITIAL_PRODUCTS);
-    }
-  }, []);
 
   const saveProducts = (updated: Product[]) => {
     setProducts(updated);
