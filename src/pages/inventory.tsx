@@ -1,4 +1,4 @@
-import React, { useState } from "react";
+import React, { useState, useEffect } from "react";
 import { SEO } from "@/components/SEO";
 import { ArrowLeft, Plus, Minus, Package, Search, AlertTriangle } from "lucide-react";
 import Link from "next/link";
@@ -6,19 +6,32 @@ import { INITIAL_PRODUCTS } from "@/lib/mock-data";
 import { Product } from "@/types/pos";
 
 export default function InventoryPage() {
-  const [products, setProducts] = useState<Product[]>(INITIAL_PRODUCTS);
+  const [products, setProducts] = useState<Product[]>([]);
   const [searchQuery, setSearchQuery] = useState("");
+
+  useEffect(() => {
+    const saved = localStorage.getItem("pocketpos_products");
+    if (saved) {
+      setProducts(JSON.parse(saved));
+    } else {
+      setProducts(INITIAL_PRODUCTS);
+    }
+  }, []);
 
   const filteredProducts = products.filter((p) =>
     p.name.toLowerCase().includes(searchQuery.toLowerCase())
   );
 
   const updateStock = (id: string, delta: number) => {
-    setProducts((prev) =>
-      prev.map((p) =>
-        p.id === id ? { ...p, stock: Math.max(0, p.stock + delta) } : p
-      )
-    );
+    const updated = products.map(p => {
+      if (p.id === id) {
+        const newStock = Math.max(0, p.stock + delta);
+        return { ...p, stock: newStock };
+      }
+      return p;
+    });
+    setProducts(updated);
+    localStorage.setItem("pocketpos_products", JSON.stringify(updated));
   };
 
   const lowStockCount = products.filter((p) => p.stock < 10).length;
