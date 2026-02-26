@@ -3,83 +3,87 @@ import { SEO } from "@/components/SEO";
 import { 
   Search, 
   ShoppingCart, 
-  ChevronRight, 
   Plus, 
   Minus, 
   Trash2, 
   CheckCircle2, 
+  X, 
+  ChevronRight,
+  Package,
   ArrowLeft,
-  Tag,
-  Package
+  LayoutGrid,
+  CreditCard,
+  Banknote,
+  QrCode,
+  Monitor
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
-import { Badge } from "@/components/ui/badge";
-import { Card } from "@/components/ui/card";
 import { 
-  Sheet, 
-  SheetContent, 
-  SheetHeader, 
-  SheetTitle, 
-  SheetTrigger 
-} from "@/components/ui/sheet";
-import {
-  Dialog,
-  DialogContent,
-  DialogHeader,
-  DialogTitle,
+  Dialog, 
+  DialogContent, 
+  DialogHeader, 
+  DialogTitle, 
+  DialogFooter 
 } from "@/components/ui/dialog";
+import { Badge } from "@/components/ui/badge";
 import { ScrollArea } from "@/components/ui/scroll-area";
-import { useToast } from "@/hooks/use-toast";
-import { motion, AnimatePresence } from "framer-motion";
-import { Product, CartItem, PaymentMethod, Sale } from "@/types/pos";
+import { cn } from "@/lib/utils";
+import { Product, CartItem, PaymentMethod, Sale, StoreSettings } from "@/types/pos";
 import { MOCK_PRODUCTS } from "@/lib/mock-data";
-import { useInView } from "react-intersection-observer";
 import Link from "next/link";
 
-const ITEMS_PER_PAGE = 20;
+const VAT_RATE = 0.12;
 
 export default function POSPage() {
-  const [searchTerm, setSearchTerm] = useState("");
-  const [selectedCategory, setSelectedCategory] = useState("All");
+  const [products, setProducts] = useState<Product[]>([]);
   const [cart, setCart] = useState<CartItem[]>([]);
-  const [isCheckoutOpen, setIsCheckoutOpen] = useState(false);
+  const [searchQuery, setSearchQuery] = useState("");
+  const [selectedCategory, setSelectedCategory] = useState("All");
+  const [isCartOpen, setIsCartOpen] = useState(false);
+  const [showReceipt, setShowReceipt] = useState(false);
   const [lastSale, setLastSale] = useState<Sale | null>(null);
-  const [visibleCount, setVisibleCount] = useState(ITEMS_PER_PAGE);
-  const { toast } = useToast();
-  const { ref, inView } = useInView();
+  const [settings, setSettings] = useState<StoreSettings | null>(null);
 
-  // Infinite Scroll Logic
+  // Load products and settings
   useEffect(() => {
-    if (inView) {
-      setVisibleCount(prev => prev + ITEMS_PER_PAGE);
+    const savedProducts = localStorage.getItem("pocketpos_products");
+    if (savedProducts) {
+      setProducts(JSON.parse(savedProducts));
+    } else {
+      setProducts(MOCK_PRODUCTS);
+      localStorage.setItem("pocketpos_products", JSON.stringify(MOCK_PRODUCTS));
     }
-  }, [inView]);
 
-  const categories = ["All", ...Array.from(new Set(MOCK_PRODUCTS.map(p => p.category)))];
+    const savedSettings = localStorage.getItem("pocketpos_settings");
+    if (savedSettings) {
+      setSettings(JSON.parse(savedSettings));
+    }
+  }, []);
+
+  const categories = useMemo(() => {
+    const cats = Array.from(new Set(products.map(p => p.category)));
+    return ["All", ...cats];
+  }, [products]);
 
   const filteredProducts = useMemo(() => {
-    return MOCK_PRODUCTS.filter(p => {
-      const matchesSearch = p.name.toLowerCase().includes(searchTerm.toLowerCase());
+    return products.filter(p => {
+      const matchesSearch = p.name.toLowerCase().includes(searchQuery.toLowerCase());
       const matchesCategory = selectedCategory === "All" || p.category === selectedCategory;
       return matchesSearch && matchesCategory;
     });
-  }, [searchTerm, selectedCategory]);
+  }, [products, searchQuery, selectedCategory]);
 
-  const displayedProducts = useMemo(() => {
-    return filteredProducts.slice(0, visibleCount);
-  }, [filteredProducts, visibleCount]);
+  const subtotal = useMemo(() => 
+    cart.reduce((sum, item) => sum + (item.price * item.quantity), 0), 
+  [cart]);
+  
+  const tax = settings?.enableVat ? subtotal * VAT_RATE : 0;
+  const total = subtotal + tax;
 
   const addToCart = (product: Product) => {
-    if (product.stock <= 0) {
-      toast({
-        title: "Out of Stock",
-        description: `${product.name} is currently unavailable.`,
-        variant: "destructive",
-      });
-      return;
-    }
-
+    if (product.stock <= 0) return;
+    
     setCart(prev => {
       const existing = prev.find(item => item.id === product.id);
       if (existing) {
@@ -101,16 +105,13 @@ export default function POSPage() {
     }).filter(item => item.quantity > 0));
   };
 
-  const subtotal = cart.reduce((sum, item) => sum + (item.price * item.quantity), 0);
-  const totalItems = cart.reduce((sum, item) => sum + item.quantity, 0);
-
   const handleCheckout = (method: PaymentMethod) => {
-    const newSale: Sale = {
+    const sale: Sale = {
       id: Math.random().toString(36).substr(2, 9),
-      orderNo: `ORD-${Date.now().toString().slice(-6)}`,
-      total: subtotal,
-      subtotal: subtotal,
-      tax: 0,
+      orderNo: `ORD-${Date.now().toString().slice(-4)}`,
+      total,
+      subtotal,
+      tax,
       discount: 0,
       items: cart.map(item => ({
         id: item.id,
@@ -124,363 +125,288 @@ export default function POSPage() {
       createdAt: new Date().toISOString()
     };
 
-    setLastSale(newSale);
+    // Update stock
+    const updatedProducts = products.map(p => {
+      const cartItem = cart.find(item => item.id === p.id);
+      if (cartItem) {
+        return { ...p, stock: p.stock - cartItem.quantity };
+      }
+      return p;
+    });
+
+    setProducts(updatedProducts);
+    localStorage.setItem("pocketpos_products", JSON.stringify(updatedProducts));
+
+    // Save sale
+    const savedSales = JSON.parse(localStorage.getItem("pocketpos_sales") || "[]");
+    localStorage.setItem("pocketpos_sales", JSON.stringify([sale, ...savedSales]));
+
+    // Update settings transaction count
+    if (settings) {
+      const updatedSettings = { ...settings, monthlyTransactionCount: (settings.monthlyTransactionCount || 0) + 1 };
+      setSettings(updatedSettings);
+      localStorage.setItem("pocketpos_settings", JSON.stringify(updatedSettings));
+    }
+
+    setLastSale(sale);
+    setShowReceipt(true);
     setCart([]);
-    setIsCheckoutOpen(false);
-    
-    // In a real app, we'd save this to a database/localStorage here
-    const savedSales = JSON.parse(localStorage.getItem("pos_sales") || "[]");
-    localStorage.setItem("pos_sales", JSON.stringify([newSale, ...savedSales]));
+    setIsCartOpen(false);
   };
 
   return (
-    <div className="flex flex-col h-screen bg-[#F5F6F8] overflow-hidden">
+    <div className="min-h-screen bg-slate-50 pb-20 md:pb-0">
       <SEO title="POS - PocketPOS PH" />
 
-      {/* Header */}
-      <header className="bg-white border-b px-4 py-3 flex items-center justify-between sticky top-0 z-10">
-        <div className="flex items-center gap-3">
-          <Link href="/">
-            <Button variant="ghost" size="icon" className="rounded-full">
-              <ArrowLeft className="w-5 h-5" />
-            </Button>
-          </Link>
-          <h1 className="font-bold text-lg text-slate-900">Ticket</h1>
-          <Badge variant="secondary" className="bg-blue-50 text-blue-600 border-blue-100">
-            {totalItems} items
-          </Badge>
-        </div>
-        <div className="flex items-center gap-2">
-          <div className="relative hidden sm:block">
+      {/* Header & Categories */}
+      <header className="sticky top-0 z-30 glass-card border-b-0 rounded-none px-4 py-3 space-y-3">
+        <div className="flex items-center justify-between gap-4">
+          <div className="flex items-center gap-2">
+            <Link href="/" className="p-2 hover:bg-slate-100 rounded-lg transition-colors">
+              <ArrowLeft className="w-5 h-5 text-slate-600" />
+            </Link>
+            <h1 className="text-xl font-bold text-slate-900 tracking-tight">Checkout</h1>
+          </div>
+          
+          <div className="flex-1 max-w-md relative">
             <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400" />
             <Input 
               placeholder="Search products..." 
-              className="pl-9 bg-slate-100 border-none w-64 h-9 rounded-lg"
-              value={searchTerm}
-              onChange={(e) => setSearchTerm(e.target.value)}
+              className="pl-9 bg-slate-100 border-none h-10 rounded-xl focus-visible:ring-primary/20"
+              value={searchQuery}
+              onChange={(e) => setSearchQuery(e.target.value)}
             />
           </div>
-          <Button variant="ghost" size="icon" className="rounded-full">
-            <Plus className="w-5 h-5 text-slate-600" />
+
+          <Button 
+            variant="outline" 
+            className="relative h-10 w-10 p-0 rounded-xl border-slate-200 md:hidden"
+            onClick={() => setIsCartOpen(true)}
+          >
+            <ShoppingCart className="w-5 h-5 text-slate-700" />
+            {cart.length > 0 && (
+              <span className="absolute -top-1 -right-1 bg-primary text-white text-[10px] font-bold h-5 w-5 rounded-full flex items-center justify-center border-2 border-white">
+                {cart.reduce((s, i) => s + i.quantity, 0)}
+              </span>
+            )}
           </Button>
+        </div>
+
+        {/* Categories Bar */}
+        <div className="flex items-center gap-2 overflow-x-auto hide-scrollbar pb-1">
+          {categories.map(cat => (
+            <button
+              key={cat}
+              onClick={() => setSelectedCategory(cat)}
+              className={cn(
+                "px-4 py-1.5 rounded-full text-sm font-medium whitespace-nowrap transition-all",
+                selectedCategory === cat 
+                  ? "bg-primary text-white shadow-lg shadow-primary/20 scale-105" 
+                  : "bg-white text-slate-600 hover:bg-slate-100 border border-slate-200"
+              )}
+            >
+              {cat}
+            </button>
+          ))}
         </div>
       </header>
 
-      {/* Categories Bar */}
-      <div className="bg-white border-b px-4 py-2 flex gap-2 overflow-x-auto no-scrollbar whitespace-nowrap">
-        {categories.map(cat => (
-          <Button
-            key={cat}
-            variant={selectedCategory === cat ? "default" : "ghost"}
-            size="sm"
-            className={`rounded-full px-4 h-8 text-xs font-medium ${
-              selectedCategory === cat ? "bg-slate-900 text-white" : "text-slate-500"
-            }`}
-            onClick={() => {
-              setSelectedCategory(cat);
-              setVisibleCount(ITEMS_PER_PAGE);
-            }}
-          >
-            {cat}
-          </Button>
-        ))}
-      </div>
+      <main className="p-4 md:flex md:gap-6 max-w-[1600px] mx-auto">
+        {/* Product Grid */}
+        <div className="flex-1">
+          <div className="grid grid-cols-3 sm:grid-cols-4 lg:grid-cols-5 xl:grid-cols-6 gap-3">
+            {filteredProducts.map(product => (
+              <button
+                key={product.id}
+                onClick={() => addToCart(product)}
+                disabled={product.stock <= 0}
+                className={cn(
+                  "group relative flex flex-col items-center p-3 rounded-2xl transition-all active:scale-95 text-center overflow-hidden",
+                  product.stock <= 0 
+                    ? "opacity-50 grayscale cursor-not-allowed" 
+                    : "bg-white hover:shadow-xl hover:shadow-slate-200/50 border border-slate-100"
+                )}
+              >
+                {/* Stock Badge */}
+                <div className={cn(
+                  "absolute top-1 right-1 px-1.5 py-0.5 rounded-lg text-[10px] font-bold flex items-center gap-1 z-10",
+                  product.stock < 5 ? "bg-red-50 text-red-600" : "bg-slate-50 text-slate-500"
+                )}>
+                  <Package className="w-3 h-3" />
+                  {product.stock}
+                </div>
 
-      <main className="flex-1 flex overflow-hidden relative">
-        {/* Product Grid - 5 Columns High Density */}
-        <div className="flex-1 overflow-y-auto p-3 no-scrollbar">
-          <div className="grid grid-cols-3 sm:grid-cols-4 md:grid-cols-5 lg:grid-cols-6 gap-2">
-            <AnimatePresence mode="popLayout">
-              {displayedProducts.map((product) => (
-                <motion.div
-                  key={product.id}
-                  layout
-                  initial={{ opacity: 0, scale: 0.9 }}
-                  animate={{ opacity: 1, scale: 1 }}
-                  exit={{ opacity: 0, scale: 0.9 }}
-                  transition={{ duration: 0.2 }}
-                  whileTap={{ scale: 0.95 }}
-                  onClick={() => addToCart(product)}
-                >
-                  <Card className="relative aspect-square flex flex-col items-center justify-center p-2 cursor-pointer hover:shadow-md transition-all border-slate-100 overflow-hidden group">
-                    {/* Discount Badge */}
-                    {product.discount && (
-                      <div className="absolute top-0 right-0 bg-red-500 text-white text-[10px] font-bold px-1.5 py-0.5 rounded-bl-lg flex items-center gap-0.5 z-10">
-                        <Tag className="w-2.5 h-2.5" />
-                        {product.discount}%
-                      </div>
+                {/* Discount Ribbon */}
+                {product.discount && product.discount > 0 && (
+                  <div className="absolute top-0 left-0 bg-red-500 text-white text-[9px] font-black px-2 py-0.5 rounded-br-lg z-10 shadow-sm uppercase tracking-tighter">
+                    -{product.discount}%
+                  </div>
+                )}
+
+                {/* Visual */}
+                <div className="w-full aspect-square mb-2 bg-slate-50 rounded-xl flex items-center justify-center relative overflow-hidden group-hover:bg-slate-100 transition-colors">
+                  {product.imageUrl ? (
+                    <img src={product.imageUrl} alt={product.name} className="w-full h-full object-cover" />
+                  ) : (
+                    <span className="text-3xl filter drop-shadow-sm group-hover:scale-110 transition-transform">{product.emoji || "📦"}</span>
+                  )}
+                </div>
+
+                <div className="w-full">
+                  <h3 className="text-[13px] font-bold text-slate-900 leading-tight mb-1 truncate px-1">
+                    {product.name}
+                  </h3>
+                  <div className="flex flex-col items-center">
+                    {product.originalPrice && (
+                      <span className="text-[10px] text-slate-400 line-through">
+                        ₱{product.originalPrice}
+                      </span>
                     )}
-
-                    {/* Stock Badge */}
-                    <div className={`absolute top-1 left-1 flex items-center gap-1 px-1.5 py-0.5 rounded-full text-[9px] font-medium z-10 ${
-                      product.stock <= 5 ? 'bg-red-50 text-red-600' : 'bg-slate-50 text-slate-500'
-                    }`}>
-                      <Package className="w-2.5 h-2.5" />
-                      {product.stock}
-                    </div>
-
-                    <div className="text-3xl mb-1 group-hover:scale-110 transition-transform">{product.emoji}</div>
-                    <div className="text-[11px] font-semibold text-center leading-tight mb-0.5 text-slate-700 line-clamp-2">
-                      {product.name}
-                    </div>
-                    <div className="flex flex-col items-center">
-                      <span className="text-[12px] font-bold text-slate-900">₱{product.price}</span>
-                      {product.originalPrice && (
-                        <span className="text-[9px] text-slate-400 line-through">₱{product.originalPrice}</span>
-                      )}
-                    </div>
-
-                    {/* Add overlay on hover */}
-                    <div className="absolute inset-0 bg-black/0 group-active:bg-black/5 transition-colors" />
-                  </Card>
-                </motion.div>
-              ))}
-            </AnimatePresence>
-
-            {/* Intersection Observer for Infinite Scroll */}
-            {filteredProducts.length > visibleCount && (
-              <div ref={ref} className="col-span-full h-10 flex items-center justify-center py-4">
-                <div className="w-5 h-5 border-2 border-slate-200 border-t-slate-900 rounded-full animate-spin" />
-              </div>
-            )}
+                    <span className="text-sm font-black text-primary">
+                      ₱{product.price}
+                    </span>
+                  </div>
+                </div>
+              </button>
+            ))}
           </div>
         </div>
 
-        {/* Desktop Sidebar (Ticket) */}
-        <div className="hidden lg:flex w-80 bg-white border-l flex-col shadow-xl z-20">
-          <div className="p-4 border-b flex justify-between items-center bg-slate-50/50">
-            <h2 className="font-bold flex items-center gap-2">
-              Current Ticket
-              <Badge variant="outline" className="bg-white">{totalItems}</Badge>
+        {/* Desktop Ticket Sidebar */}
+        <aside className="hidden md:block w-96 glass-card p-6 h-[calc(100vh-120px)] sticky top-32 flex flex-col rounded-3xl border-0">
+          <div className="flex items-center justify-between mb-6">
+            <h2 className="text-lg font-black text-slate-900 flex items-center gap-2">
+              Current Ticket 
+              <span className="bg-slate-100 text-slate-600 text-xs px-2 py-0.5 rounded-full font-bold">
+                {cart.reduce((s, i) => s + i.quantity, 0)}
+              </span>
             </h2>
-            <Button variant="ghost" size="icon" onClick={() => setCart([])} disabled={cart.length === 0}>
-              <Trash2 className="w-4 h-4 text-slate-400" />
-            </Button>
+            <button onClick={() => setCart([])} className="text-xs font-bold text-red-500 hover:bg-red-50 px-2 py-1 rounded-lg">
+              Void All
+            </button>
           </div>
 
-          <ScrollArea className="flex-1 p-4">
-            {cart.length === 0 ? (
-              <div className="h-full flex flex-col items-center justify-center text-slate-400 gap-3 opacity-50 mt-20">
-                <ShoppingCart className="w-12 h-12" />
-                <p className="text-sm font-medium">Ticket is empty</p>
-              </div>
-            ) : (
-              <div className="space-y-4">
-                {cart.map(item => (
-                  <div key={item.id} className="flex justify-between items-start group">
-                    <div className="flex-1 pr-4">
-                      <h3 className="text-sm font-bold text-slate-800 line-clamp-1">{item.name}</h3>
-                      <p className="text-xs text-slate-500">₱{item.price} each</p>
-                    </div>
-                    <div className="flex items-center gap-3">
-                      <div className="flex items-center bg-slate-100 rounded-lg p-1">
-                        <button 
-                          onClick={() => updateQuantity(item.id, -1)}
-                          className="w-6 h-6 flex items-center justify-center hover:bg-white rounded transition-colors"
-                        >
-                          <Minus className="w-3 h-3" />
-                        </button>
-                        <span className="w-6 text-center text-xs font-bold">{item.quantity}</span>
-                        <button 
-                          onClick={() => updateQuantity(item.id, 1)}
-                          className="w-6 h-6 flex items-center justify-center hover:bg-white rounded transition-colors"
-                        >
-                          <Plus className="w-3 h-3" />
-                        </button>
-                      </div>
-                      <span className="text-sm font-bold w-16 text-right">₱{item.price * item.quantity}</span>
-                    </div>
+          <ScrollArea className="flex-1 pr-4 -mr-4">
+            <div className="space-y-4">
+              {cart.map(item => (
+                <div key={item.id} className="flex items-center justify-between group">
+                  <div className="flex-1 min-w-0 mr-4">
+                    <h4 className="text-sm font-bold text-slate-900 truncate">{item.name}</h4>
+                    <p className="text-xs text-slate-400">₱{item.price} each</p>
                   </div>
-                ))}
-              </div>
-            )}
+                  <div className="flex items-center gap-3 bg-slate-50 p-1 rounded-xl">
+                    <button onClick={() => updateQuantity(item.id, -1)} className="p-1 hover:bg-white hover:shadow-sm rounded-lg transition-all text-slate-500">
+                      <Minus className="w-3.5 h-3.5" />
+                    </button>
+                    <span className="text-sm font-black text-slate-900 w-4 text-center">{item.quantity}</span>
+                    <button onClick={() => updateQuantity(item.id, 1)} className="p-1 hover:bg-white hover:shadow-sm rounded-lg transition-all text-slate-500">
+                      <Plus className="w-3.5 h-3.5" />
+                    </button>
+                  </div>
+                </div>
+              ))}
+              {cart.length === 0 && (
+                <div className="flex flex-col items-center justify-center py-12 text-slate-300">
+                  <ShoppingCart className="w-12 h-12 mb-2 opacity-20" />
+                  <p className="text-sm font-bold">No items in ticket</p>
+                </div>
+              )}
+            </div>
           </ScrollArea>
 
-          <div className="p-4 bg-slate-50 border-t space-y-3">
-            <div className="space-y-1">
-              <div className="flex justify-between text-xs text-slate-500">
-                <span>Subtotal</span>
-                <span>₱{subtotal}</span>
-              </div>
-              <div className="flex justify-between text-xs text-slate-500">
-                <span>Tax (0%)</span>
-                <span>₱0</span>
-              </div>
-              <div className="flex justify-between text-lg font-black text-slate-900 pt-2 border-t">
-                <span>Total</span>
-                <span>₱{subtotal}</span>
-              </div>
+          <div className="mt-6 pt-6 border-t border-slate-100 space-y-2">
+            <div className="flex justify-between text-sm text-slate-500">
+              <span>Subtotal</span>
+              <span className="font-bold">₱{subtotal.toFixed(2)}</span>
             </div>
+            {settings?.enableVat && (
+              <div className="flex justify-between text-sm text-slate-500">
+                <span>VAT (12%)</span>
+                <span className="font-bold">₱{tax.toFixed(2)}</span>
+              </div>
+            )}
+            <div className="flex justify-between items-center pt-2">
+              <span className="text-lg font-black text-slate-900 uppercase">Total Due</span>
+              <span className="text-2xl font-black text-primary tracking-tighter">₱{total.toFixed(2)}</span>
+            </div>
+          </div>
+
+          <div className="grid grid-cols-2 gap-3 mt-6">
             <Button 
-              className="w-full h-12 text-lg font-bold bg-green-600 hover:bg-green-700 text-white rounded-xl shadow-lg shadow-green-100"
+              onClick={() => handleCheckout("CASH")} 
               disabled={cart.length === 0}
-              onClick={() => setIsCheckoutOpen(true)}
+              className="h-14 rounded-2xl bg-slate-900 hover:bg-slate-800 text-white font-bold flex flex-col gap-0"
             >
-              CHARGE ₱{subtotal}
+              <Banknote className="w-5 h-5 mb-0.5" />
+              <span className="text-[10px]">CASH</span>
+            </Button>
+            <Button 
+              onClick={() => handleCheckout("QR_PH")} 
+              disabled={cart.length === 0}
+              className="h-14 rounded-2xl bg-primary hover:bg-primary/90 text-white font-bold flex flex-col gap-0 shadow-lg shadow-primary/20"
+            >
+              <QrCode className="w-5 h-5 mb-0.5" />
+              <span className="text-[10px]">CHARGE</span>
             </Button>
           </div>
-        </div>
-
-        {/* Mobile Bottom Bar (Ticket Trigger) */}
-        <div className="lg:hidden absolute bottom-0 left-0 right-0 p-4 bg-white/80 backdrop-blur-xl border-t flex gap-3 z-30">
-          <Sheet>
-            <SheetTrigger asChild>
-              <Button variant="outline" className="flex-1 h-12 rounded-xl relative">
-                <ShoppingCart className="w-5 h-5 mr-2" />
-                Ticket
-                {totalItems > 0 && (
-                  <span className="absolute -top-2 -right-2 bg-blue-600 text-white text-[10px] font-bold w-5 h-5 rounded-full flex items-center justify-center border-2 border-white shadow-sm">
-                    {totalItems}
-                  </span>
-                )}
-              </Button>
-            </SheetTrigger>
-            <SheetContent side="bottom" className="h-[80vh] rounded-t-3xl p-0 overflow-hidden flex flex-col">
-              <SheetHeader className="p-4 border-b">
-                <div className="flex items-center justify-between">
-                  <SheetTitle className="font-bold">Current Ticket</SheetTitle>
-                  <Button variant="ghost" size="icon" onClick={() => setCart([])}>
-                    <Trash2 className="w-4 h-4 text-red-500" />
-                  </Button>
-                </div>
-              </SheetHeader>
-              <ScrollArea className="flex-1 p-4">
-                {cart.length === 0 ? (
-                  <div className="h-full flex flex-col items-center justify-center text-slate-400 gap-3 py-20">
-                    <ShoppingCart className="w-12 h-12" />
-                    <p className="text-sm font-medium">Empty</p>
-                  </div>
-                ) : (
-                  <div className="space-y-6">
-                    {cart.map(item => (
-                      <div key={item.id} className="flex justify-between items-center">
-                        <div className="flex-1">
-                          <h3 className="font-bold text-slate-800">{item.name}</h3>
-                          <p className="text-xs text-slate-500">₱{item.price}</p>
-                        </div>
-                        <div className="flex items-center gap-4">
-                          <div className="flex items-center bg-slate-100 rounded-xl p-1">
-                            <button onClick={() => updateQuantity(item.id, -1)} className="p-2"><Minus className="w-4 h-4" /></button>
-                            <span className="w-8 text-center font-bold">{item.quantity}</span>
-                            <button onClick={() => updateQuantity(item.id, 1)} className="p-2"><Plus className="w-4 h-4" /></button>
-                          </div>
-                          <span className="font-bold text-right min-w-[80px]">₱{item.price * item.quantity}</span>
-                        </div>
-                      </div>
-                    ))}
-                  </div>
-                )}
-              </ScrollArea>
-              <div className="p-6 bg-slate-50 border-t space-y-4">
-                <div className="flex justify-between text-2xl font-black text-slate-900">
-                  <span>Total</span>
-                  <span>₱{subtotal}</span>
-                </div>
-                <Button 
-                  className="w-full h-14 text-xl font-bold bg-green-600 hover:bg-green-700 text-white rounded-2xl shadow-xl shadow-green-100"
-                  disabled={cart.length === 0}
-                  onClick={() => {
-                    setIsCheckoutOpen(true);
-                  }}
-                >
-                  CHARGE ₱{subtotal}
-                </Button>
-              </div>
-            </SheetContent>
-          </Sheet>
-          
-          <Button 
-            className="flex-[2] h-12 rounded-xl bg-green-600 hover:bg-green-700 text-white font-bold"
-            disabled={cart.length === 0}
-            onClick={() => setIsCheckoutOpen(true)}
-          >
-            CHARGE ₱{subtotal}
-          </Button>
-        </div>
+        </aside>
       </main>
 
-      {/* Checkout Selection Dialog */}
-      <Dialog open={isCheckoutOpen} onOpenChange={setIsCheckoutOpen}>
-        <DialogContent className="sm:max-w-md rounded-3xl">
-          <DialogHeader>
-            <DialogTitle className="text-center text-2xl font-black">Select Payment</DialogTitle>
-          </DialogHeader>
-          <div className="grid grid-cols-2 gap-4 py-4">
-            <Button 
-              variant="outline" 
-              className="h-24 flex flex-col gap-2 rounded-2xl border-2 hover:border-blue-500 hover:bg-blue-50 group transition-all"
-              onClick={() => handleCheckout("CASH")}
-            >
-              <div className="w-10 h-10 rounded-full bg-blue-100 flex items-center justify-center group-hover:scale-110 transition-transform">💵</div>
-              <span className="font-bold">CASH</span>
-            </Button>
-            <Button 
-              variant="outline" 
-              className="h-24 flex flex-col gap-2 rounded-2xl border-2 hover:border-purple-500 hover:bg-purple-50 group transition-all"
-              onClick={() => handleCheckout("QR_PH")}
-            >
-              <div className="w-10 h-10 rounded-full bg-purple-100 flex items-center justify-center group-hover:scale-110 transition-transform">📱</div>
-              <span className="font-bold">QR PH</span>
-            </Button>
-            <Button 
-              variant="outline" 
-              className="h-24 flex flex-col gap-2 rounded-2xl border-2 hover:border-orange-500 hover:bg-orange-50 group transition-all"
-              onClick={() => handleCheckout("CARD")}
-            >
-              <div className="w-10 h-10 rounded-full bg-orange-100 flex items-center justify-center group-hover:scale-110 transition-transform">💳</div>
-              <span className="font-bold">CARD</span>
-            </Button>
-            <Button 
-              variant="outline" 
-              className="h-24 flex flex-col gap-2 rounded-2xl border-2 hover:border-teal-500 hover:bg-teal-50 group transition-all"
-              onClick={() => handleCheckout("MAYA_TERMINAL")}
-            >
-              <div className="w-10 h-10 rounded-full bg-teal-100 flex items-center justify-center group-hover:scale-110 transition-transform">🖥️</div>
-              <span className="font-bold">MAYA TERM</span>
-            </Button>
+      {/* Mobile Cart Bar */}
+      <div className="md:hidden fixed bottom-0 left-0 right-0 glass-card rounded-t-3xl border-0 p-4 pb-8 z-40 shadow-2xl flex items-center justify-between">
+        <div className="flex flex-col">
+          <span className="text-[10px] font-black text-slate-400 uppercase tracking-widest">To Pay</span>
+          <span className="text-2xl font-black text-primary tracking-tighter leading-none">₱{total.toFixed(2)}</span>
+        </div>
+        <Button 
+          onClick={() => setIsCartOpen(true)}
+          disabled={cart.length === 0}
+          className="h-12 px-8 rounded-2xl bg-primary hover:bg-primary/90 text-white font-black shadow-lg shadow-primary/20 transition-all active:scale-95"
+        >
+          View Ticket ({cart.reduce((s, i) => s + i.quantity, 0)})
+        </Button>
+      </div>
+
+      {/* Receipt Dialog */}
+      <Dialog open={showReceipt} onOpenChange={setShowReceipt}>
+        <DialogContent className="sm:max-w-md bg-white p-0 overflow-hidden rounded-3xl border-none max-w-[90vw]">
+          <div className="p-8 text-center bg-slate-50 border-b border-dashed border-slate-200">
+            <div className="w-16 h-16 bg-green-100 rounded-full flex items-center justify-center mx-auto mb-4 text-green-600">
+              <CheckCircle2 className="w-8 h-8" />
+            </div>
+            <h2 className="text-2xl font-black text-slate-900 leading-none mb-2">Paid ₱{lastSale?.total.toFixed(2)}</h2>
+            <p className="text-xs font-bold text-slate-400 uppercase tracking-widest">{lastSale?.orderNo} • {lastSale?.paymentMethod}</p>
           </div>
-        </DialogContent>
-      </Dialog>
-
-      {/* Success Receipt Dialog */}
-      <Dialog open={!!lastSale} onOpenChange={() => setLastSale(null)}>
-        <DialogContent className="sm:max-w-[400px] p-0 overflow-hidden bg-slate-50 border-none rounded-3xl">
-          <div className="p-8 flex flex-col items-center text-center bg-white">
-            <div className="w-20 h-20 bg-green-100 text-green-600 rounded-full flex items-center justify-center mb-6 animate-bounce">
-              <CheckCircle2 className="w-12 h-12" />
+          
+          <ScrollArea className="max-h-[30vh] px-8 py-6">
+            <div className="space-y-3">
+              {lastSale?.items.map((item, idx) => (
+                <div key={idx} className="flex justify-between items-center text-sm">
+                  <span className="text-slate-600 font-medium">
+                    <span className="font-black text-slate-900">{item.quantity}x</span> {item.name}
+                  </span>
+                  <span className="font-bold text-slate-900">₱{(item.price * item.quantity).toFixed(2)}</span>
+                </div>
+              ))}
             </div>
-            <h2 className="text-3xl font-black text-slate-900 mb-2">PAID!</h2>
-            <p className="text-slate-500 font-medium mb-1">Order {lastSale?.orderNo}</p>
-            <div className="text-4xl font-black text-slate-900 mt-4">
-              ₱{lastSale?.total}
-            </div>
-          </div>
+          </ScrollArea>
 
-          <div className="p-6 space-y-4">
-            <div className="bg-white rounded-2xl p-4 shadow-sm space-y-3">
-              <div className="flex justify-between text-sm">
-                <span className="text-slate-400">Payment</span>
-                <span className="font-bold text-slate-900">{lastSale?.paymentMethod}</span>
+          <div className="px-8 pb-8 pt-4 space-y-4">
+            <div className="pt-4 border-t border-slate-100 space-y-2">
+              <div className="flex justify-between text-xs text-slate-400 font-bold uppercase tracking-widest">
+                <span>Subtotal</span>
+                <span>₱{lastSale?.subtotal.toFixed(2)}</span>
               </div>
-              <div className="flex justify-between text-sm">
-                <span className="text-slate-400">Date</span>
-                <span className="font-bold text-slate-900">
-                  {lastSale ? new Date(lastSale.timestamp).toLocaleTimeString() : ''}
-                </span>
-              </div>
+              {lastSale?.tax !== 0 && (
+                <div className="flex justify-between text-xs text-slate-400 font-bold uppercase tracking-widest">
+                  <span>VAT (12%)</span>
+                  <span>₱{lastSale?.tax.toFixed(2)}</span>
+                </div>
+              )}
             </div>
-
-            <div className="grid grid-cols-2 gap-3">
-              <Button variant="outline" className="h-12 rounded-xl font-bold border-2">
-                PRINT
-              </Button>
-              <Button 
-                className="h-12 rounded-xl font-bold bg-slate-900 text-white"
-                onClick={() => setLastSale(null)}
-              >
-                DONE
-              </Button>
-            </div>
+            <Button onClick={() => setShowReceipt(false)} className="w-full h-14 rounded-2xl bg-slate-900 hover:bg-slate-800 text-white font-bold transition-all active:scale-95">
+              Done & New Sale
+            </Button>
           </div>
         </DialogContent>
       </Dialog>

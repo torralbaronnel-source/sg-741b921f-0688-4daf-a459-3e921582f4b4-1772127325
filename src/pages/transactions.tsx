@@ -11,7 +11,8 @@ import {
   X,
   Receipt,
   Package,
-  Calendar as CalendarIcon
+  Calendar as CalendarIcon,
+  Info
 } from "lucide-react";
 import Link from "next/link";
 import { Button } from "@/components/ui/button";
@@ -41,8 +42,19 @@ import { MOCK_SALES } from "@/lib/mock-data";
 import { format, isWithinInterval, startOfDay, endOfDay, subDays, startOfMonth, endOfMonth, subMonths, startOfYear, endOfYear } from "date-fns";
 import { motion, AnimatePresence } from "framer-motion";
 import { cn } from "@/lib/utils";
+import { 
+  Dialog, 
+  DialogContent, 
+  DialogHeader, 
+  DialogTitle, 
+  DialogDescription,
+  DialogFooter
+} from "@/components/ui/dialog";
+import { Progress } from "@/components/ui/progress";
 
 type DateRangeType = 'today' | '7days' | '30days' | 'thisMonth' | 'lastMonth' | 'thisYear' | 'lastYear' | 'all';
+
+const TRANSACTION_LIMIT = 500;
 
 export default function TransactionsPage() {
   const [searchTerm, setSearchTerm] = useState("");
@@ -51,6 +63,22 @@ export default function TransactionsPage() {
   const [selectedSale, setSelectedSale] = useState<Sale | null>(null);
   const [isPanelExpanded, setIsPanelExpanded] = useState(false);
   const { toast } = useToast();
+  const [settings, setSettings] = useState<any>(null);
+  const [showUpgradeModal, setShowUpgradeModal] = useState(false);
+
+  useEffect(() => {
+    const saved = localStorage.getItem("pocketpos_settings");
+    if (saved) setSettings(JSON.parse(saved));
+  }, []);
+
+  const handleExport = () => {
+    if (settings?.subscriptionTier === "FREE") {
+      setShowUpgradeModal(true);
+      return;
+    }
+    // Proceed with export...
+    alert("Exporting transactions to CSV...");
+  };
 
   const itemsPerPage = 10;
 
@@ -155,9 +183,32 @@ export default function TransactionsPage() {
     setIsPanelExpanded(true);
   };
 
+  const usagePercent = settings ? (settings.monthlyTransactionCount / TRANSACTION_LIMIT) * 100 : 0;
+
   return (
     <div className="min-h-screen bg-[#F5F6F8] pb-24 lg:pb-0">
       <SEO title="Transactions | PocketPOS PH" />
+      
+      {/* Transaction Counter - PocketPOS Brand */}
+      {settings?.subscriptionTier === "FREE" && (
+        <div className="bg-amber-50 border-b border-amber-100 px-4 py-2">
+          <div className="max-w-7xl mx-auto flex items-center justify-between gap-4">
+            <div className="flex items-center gap-2 text-[11px] font-bold text-amber-700 uppercase tracking-wider">
+              <Info className="w-3.5 h-3.5" />
+              Monthly Free Usage
+            </div>
+            <div className="flex-1 max-w-[200px] h-1.5 bg-amber-200/50 rounded-full overflow-hidden">
+              <div 
+                className="h-full bg-amber-500 transition-all duration-500" 
+                style={{ width: `${usagePercent}%` }} 
+              />
+            </div>
+            <div className="text-[11px] font-black text-amber-700">
+              {settings.monthlyTransactionCount}/{TRANSACTION_LIMIT}
+            </div>
+          </div>
+        </div>
+      )}
       
       {/* Header */}
       <div className="bg-white border-b border-slate-200 sticky top-0 z-30 px-4 py-4">

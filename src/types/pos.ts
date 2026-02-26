@@ -6,8 +6,8 @@ export interface Product {
   discount?: number;
   stock: number;
   category: string;
-  emoji: string;
-  taxRate?: number;
+  emoji?: string;
+  imageUrl?: string;
 }
 
 export interface CartItem extends Product {
@@ -35,4 +35,20 @@ export interface Sale {
   providerRef?: string;
   timestamp: string;
   createdAt: string;
+}
+
+export type SubscriptionTier = "FREE" | "BASIC";
+
+export interface StoreSettings {
+  storeName: string;
+  address: string;
+  phone: string;
+  taxRate: number;
+  currency: string;
+  receiptFooter: string;
+  lowStockThreshold: number;
+  autoPrintReceipt: boolean;
+  enableVat: boolean;
+  subscriptionTier: SubscriptionTier;
+  monthlyTransactionCount: number;
 }
