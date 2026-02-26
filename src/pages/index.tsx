@@ -1,132 +1,102 @@
-import React, { useState, useEffect } from "react";
+import React from "react";
+import Link from "next/link";
 import { SEO } from "@/components/SEO";
 import { 
+  LayoutDashboard, 
   ShoppingCart, 
   Package, 
-  ReceiptText, 
-  Settings,
-  Plus,
-  ChevronRight
+  History, 
+  Settings, 
+  TrendingUp, 
+  AlertCircle,
+  ArrowUpRight,
+  Plus
 } from "lucide-react";
-import Link from "next/link";
+import { motion } from "framer-motion";
 
 export default function Dashboard() {
-  const [mounted, setMounted] = useState(false);
-  const [stats, setStats] = useState({
-    sales: 0,
-    transactions: 0,
-    lowStock: 0
-  });
+  const stats = [
+    { label: "Today's Sales", value: "₱12,450.00", trend: "+12%", icon: TrendingUp, color: "text-blue-600" },
+    { label: "Orders", value: "48", trend: "+5", icon: ShoppingCart, color: "text-purple-600" },
+    { label: "Low Stock", value: "3", trend: "Alert", icon: AlertCircle, color: "text-orange-500" },
+  ];
 
-  useEffect(() => {
-    setMounted(true);
-    // Basic stats logic
-    setStats({
-      sales: 12450.50,
-      transactions: 42,
-      lowStock: 3
-    });
-  }, []);
-
-  const menuItems = [
-    { title: "Point of Sale", icon: <ShoppingCart className="w-6 h-6" />, href: "/pos", color: "bg-blue-500" },
-    { title: "Inventory", icon: <Package className="w-6 h-6" />, href: "/inventory", color: "bg-orange-500" },
-    { title: "Transactions", icon: <ReceiptText className="w-6 h-6" />, href: "/transactions", color: "bg-green-500" },
-    { title: "Settings", icon: <Settings className="w-6 h-6" />, href: "/settings", color: "bg-gray-500" },
+  const quickActions = [
+    { name: "New Sale", href: "/pos", icon: Plus, color: "bg-blue-600" },
+    { name: "Inventory", href: "/inventory", icon: Package, color: "bg-slate-800" },
+    { name: "Reports", href: "/transactions", icon: History, color: "bg-slate-800" },
   ];
 
   return (
-    <div className="min-h-screen bg-slate-50 pb-20">
-      <SEO title="Dashboard | PocketPOS PH" description="Fast & Functional POS for PH Businesses" />
-      
+    <div className="min-h-screen bg-[#F8FAFC] pb-24">
+      <SEO title="Dashboard | PocketPOS PH" />
+
       {/* Header */}
-      <header className="bg-white border-b p-4 sticky top-0 z-10">
-        <div className="flex justify-between items-center max-w-lg mx-auto w-full">
-          <h1 className="text-xl font-bold text-slate-900">PocketPOS <span className="text-blue-600">PH</span></h1>
-          <div className="w-10 h-10 rounded-full bg-slate-200 flex items-center justify-center">
-            <span className="font-bold text-slate-600 text-xs">JD</span>
+      <header className="px-6 pt-8 pb-4">
+        <div className="flex justify-between items-end">
+          <div>
+            <h1 className="text-3xl font-bold text-slate-900 tracking-tight">PocketPOS</h1>
+            <p className="text-slate-500 font-medium">Brew & Bites Cafe • Feb 26</p>
           </div>
+          <Link href="/settings">
+            <div className="w-10 h-10 rounded-full bg-white shadow-sm border border-slate-200 flex items-center justify-center tap-active">
+              <Settings className="w-5 h-5 text-slate-600" />
+            </div>
+          </Link>
         </div>
       </header>
 
-      <main className="max-w-lg mx-auto p-4 space-y-6">
+      <main className="px-4 space-y-6 mt-4">
         {/* Stats Grid */}
-        <div className="grid grid-cols-2 gap-4">
-          <div className="bg-white p-4 rounded-2xl shadow-sm border border-slate-100">
-            <p className="text-slate-500 text-xs font-medium uppercase tracking-wider">Today's Sales</p>
-            <p className="text-2xl font-bold text-slate-900 mt-1">₱{stats.sales.toLocaleString()}</p>
-          </div>
-          <div className="bg-white p-4 rounded-2xl shadow-sm border border-slate-100">
-            <p className="text-slate-500 text-xs font-medium uppercase tracking-wider">Orders</p>
-            <p className="text-2xl font-bold text-slate-900 mt-1">{stats.transactions}</p>
-          </div>
+        <div className="grid grid-cols-1 gap-4">
+          {stats.map((stat, i) => (
+            <motion.div 
+              key={stat.label}
+              initial={{ opacity: 0, y: 20 }}
+              animate={{ opacity: 1, y: 0 }}
+              transition={{ delay: i * 0.1 }}
+              className="glass-card p-5 rounded-3xl"
+            >
+              <div className="flex justify-between items-start">
+                <div className={`p-2 rounded-2xl bg-slate-50 ${stat.color}`}>
+                  <stat.icon className="w-5 h-5" />
+                </div>
+                <div className="flex items-center text-xs font-bold text-green-600 bg-green-50 px-2 py-1 rounded-full">
+                  {stat.trend} <ArrowUpRight className="w-3 h-3 ml-0.5" />
+                </div>
+              </div>
+              <div className="mt-4">
+                <p className="text-sm font-medium text-slate-500">{stat.label}</p>
+                <p className="text-2xl font-bold text-slate-900 mt-1">{stat.value}</p>
+              </div>
+            </motion.div>
+          ))}
         </div>
 
         {/* Quick Actions */}
         <section>
-          <h2 className="text-sm font-semibold text-slate-500 uppercase tracking-wider mb-3">Main Menu</h2>
+          <h2 className="text-lg font-bold text-slate-800 px-2 mb-4">Quick Actions</h2>
           <div className="grid grid-cols-2 gap-4">
-            {menuItems.map((item) => (
-              <Link key={item.title} href={item.href}>
-                <div className="bg-white p-4 rounded-2xl shadow-sm border border-slate-100 flex flex-col items-center justify-center space-y-3 active:scale-95 transition-transform">
-                  <div className={`${item.color} p-3 rounded-xl text-white`}>
-                    {item.icon}
+            {quickActions.map((action) => (
+              <Link key={action.name} href={action.href} className="block">
+                <div className={`glass-card p-6 rounded-[2.5rem] flex flex-col items-center justify-center space-y-3 tap-active ${action.name === "New Sale" ? "ring-2 ring-blue-500/20" : ""}`}>
+                  <div className={`w-12 h-12 rounded-2xl flex items-center justify-center text-white ${action.color}`}>
+                    <action.icon className="w-6 h-6" />
                   </div>
-                  <span className="font-semibold text-slate-800 text-sm">{item.title}</span>
+                  <span className="font-bold text-slate-900">{action.name}</span>
                 </div>
               </Link>
             ))}
           </div>
         </section>
-
-        {/* Low Stock Alert */}
-        {stats.lowStock > 0 && (
-          <section className="bg-orange-50 border border-orange-100 p-4 rounded-2xl flex items-center justify-between">
-            <div className="flex items-center space-x-3">
-              <div className="bg-orange-500 p-2 rounded-lg text-white">
-                <Package className="w-5 h-5" />
-              </div>
-              <div>
-                <p className="font-bold text-orange-900 text-sm">{stats.lowStock} Items Low on Stock</p>
-                <p className="text-orange-700 text-xs">Update your inventory soon.</p>
-              </div>
-            </div>
-            <Link href="/inventory" className="text-orange-600">
-              <ChevronRight className="w-5 h-5" />
-            </Link>
-          </section>
-        )}
-
-        {/* Recent Transactions placeholder */}
-        <section>
-          <div className="flex justify-between items-center mb-3">
-            <h2 className="text-sm font-semibold text-slate-500 uppercase tracking-wider">Recent Activity</h2>
-            <Link href="/transactions" className="text-blue-600 text-xs font-bold">View All</Link>
-          </div>
-          <div className="bg-white rounded-2xl shadow-sm border border-slate-100 overflow-hidden">
-            {mounted && [1, 2, 3].map((_, i) => (
-              <div key={i} className="p-4 flex justify-between items-center border-b last:border-0 border-slate-50">
-                <div className="flex items-center space-x-3">
-                  <div className="w-10 h-10 bg-slate-100 rounded-full flex items-center justify-center">
-                    <ReceiptText className="w-5 h-5 text-slate-400" />
-                  </div>
-                  <div>
-                    <p className="font-bold text-slate-800 text-sm">Order #10{42-i}</p>
-                    <p className="text-slate-400 text-xs">Today, 2:45 PM</p>
-                  </div>
-                </div>
-                <p className="font-bold text-slate-900">₱{(Math.random() * 500 + 100).toFixed(2)}</p>
-              </div>
-            ))}
-            {!mounted && <div className="p-8 text-center text-slate-400 text-xs text-balance">Loading recent activity...</div>}
-          </div>
-        </section>
       </main>
 
-      {/* Quick Action Floating Button */}
-      <Link href="/pos" className="fixed bottom-6 right-6 w-14 h-14 bg-blue-600 rounded-full shadow-lg shadow-blue-200 flex items-center justify-center text-white active:scale-90 transition-transform">
-        <Plus className="w-8 h-8" />
-      </Link>
+      {/* Bottom Nav Blur */}
+      <nav className="fixed bottom-6 left-6 right-6 h-16 glass-card rounded-full flex items-center justify-around px-4 z-50">
+        <Link href="/" className="p-2 text-blue-600"><LayoutDashboard className="w-6 h-6" /></Link>
+        <Link href="/pos" className="p-3 bg-blue-600 text-white rounded-full -mt-10 shadow-lg shadow-blue-500/40 tap-active"><ShoppingCart className="w-6 h-6" /></Link>
+        <Link href="/inventory" className="p-2 text-slate-400"><Package className="w-6 h-6" /></Link>
+      </nav>
     </div>
   );
 }
