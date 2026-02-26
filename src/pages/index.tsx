@@ -11,6 +11,7 @@ import {
 import Link from "next/link";
 
 export default function Dashboard() {
+  const [mounted, setMounted] = useState(false);
   const [stats, setStats] = useState({
     sales: 0,
     transactions: 0,
@@ -18,6 +19,7 @@ export default function Dashboard() {
   });
 
   useEffect(() => {
+    setMounted(true);
     // Basic stats logic
     setStats({
       sales: 12450.50,
@@ -102,7 +104,7 @@ export default function Dashboard() {
             <Link href="/transactions" className="text-blue-600 text-xs font-bold">View All</Link>
           </div>
           <div className="bg-white rounded-2xl shadow-sm border border-slate-100 overflow-hidden">
-            {[1, 2, 3].map((_, i) => (
+            {mounted && [1, 2, 3].map((_, i) => (
               <div key={i} className="p-4 flex justify-between items-center border-b last:border-0 border-slate-50">
                 <div className="flex items-center space-x-3">
                   <div className="w-10 h-10 bg-slate-100 rounded-full flex items-center justify-center">
@@ -116,6 +118,7 @@ export default function Dashboard() {
                 <p className="font-bold text-slate-900">₱{(Math.random() * 500 + 100).toFixed(2)}</p>
               </div>
             ))}
+            {!mounted && <div className="p-8 text-center text-slate-400 text-xs text-balance">Loading recent activity...</div>}
           </div>
         </section>
       </main>
