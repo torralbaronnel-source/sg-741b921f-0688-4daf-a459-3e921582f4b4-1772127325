@@ -48,8 +48,9 @@ export default function POSPage() {
   }, [cart]);
 
   const handleCheckout = (method: string) => {
+    const orderNumber = Math.floor(1000 + Math.random() * 9000); // Simple sequential mock
     const transaction: Transaction = {
-      id: Math.random().toString(36).substr(2, 9),
+      id: `ORD-${orderNumber}`,
       items: [...cart],
       total,
       paymentMethod: method as any,
@@ -67,32 +68,34 @@ export default function POSPage() {
   if (isReceipt && lastTransaction) {
     return (
       <div className="min-h-screen bg-white p-4 flex flex-col items-center justify-center font-mono">
-        <div className="w-full max-w-sm border-2 border-dashed border-slate-300 p-6 rounded-lg bg-slate-50">
-          <div className="text-center mb-4">
-            <h2 className="text-xl font-bold uppercase tracking-widest">POCKETPOS PH</h2>
-            <p className="text-xs text-slate-500">Official Receipt</p>
-            <p className="text-xs text-slate-500">{new Date(lastTransaction.timestamp).toLocaleString()}</p>
+        <div className="w-full max-w-sm border-2 border-slate-900 p-6 bg-white text-black">
+          <div className="text-center mb-6">
+            <h2 className="text-2xl font-black">POCKETPOS PH</h2>
+            <p className="text-sm">ORDER #{lastTransaction.id}</p>
+            <p className="text-xs">{new Date(lastTransaction.timestamp).toLocaleString()}</p>
           </div>
-          <div className="space-y-2 mb-4 border-y border-slate-200 py-4">
+          <div className="space-y-1 mb-6 border-y-2 border-black py-4">
             {lastTransaction.items.map((item) => (
               <div key={item.id} className="flex justify-between text-sm">
                 <span>{item.name} x{item.quantity}</span>
-                <span>₱{(item.price * item.quantity).toFixed(2)}</span>
+                <span>P{(item.price * item.quantity).toFixed(2)}</span>
               </div>
             ))}
           </div>
-          <div className="flex justify-between font-bold text-lg mb-2">
+          <div className="flex justify-between font-black text-xl mb-4">
             <span>TOTAL</span>
-            <span>₱{lastTransaction.total.toFixed(2)}</span>
+            <span>P{lastTransaction.total.toFixed(2)}</span>
           </div>
-          <div className="text-xs text-center text-slate-500 mb-6">
-            Payment: {paymentMethod?.toUpperCase()}
+          <div className="text-xs text-center border-t border-black pt-4 mb-8">
+            PAYMENT: {paymentMethod?.toUpperCase()}
+            <br />
+            THANK YOU FOR YOUR BUSINESS
           </div>
           <button 
             onClick={() => setIsReceipt(false)}
-            className="w-full bg-slate-900 text-white py-4 rounded-xl font-bold active:scale-95 transition-transform"
+            className="w-full bg-black text-white py-5 font-black text-xl active:bg-slate-800"
           >
-            DONE
+            CLOSE
           </button>
         </div>
       </div>
