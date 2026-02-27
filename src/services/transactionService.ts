@@ -1,9 +1,31 @@
 import { supabase } from "@/integrations/supabase/client";
-import type { Database } from "@/integrations/supabase/types";
-
-export type Transaction = Database["public"]["Tables"]["transactions"]["Row"];
+import type { CartItem } from "@/types/pos";
 
 export const transactionService = {
+  async checkout(items: CartItem[], total: number, paymentMethod: string, shopId: string) {
+    // Prepare items for the PG function
+    const formattedItems = items.map(item => ({
+      id: item.id,
+      quantity: item.quantity,
+      price: item.price
+    }));
+
+    // Call our custom RPC function for atomic transaction + stock deduction
+    const { data, error } = await supabase.rpc('handle_checkout_with_stock', {
+      p_items: formattedItems,
+      p_total: total,
+      p_payment_method: paymentMethod,
+      p_shop_id: shopId
+    });
+
+    if (error) {
+      console.error("Checkout error:", error);
+      throw error;
+    }
+
+    return data;
+  },
+
   async getTransactions() {
     const { data, error } = await supabase
       .from("transactions")
@@ -16,31 +38,16 @@ export const transactionService = {
   async getTransactionById(id: string) {
     const { data, error } = await supabase
       .from("transactions")
-      .select("*")
+      .select(`
+        *,
+        transaction_items (
+          *,
+          products (name)
+        )
+      `)
       .eq("id", id)
       .single();
     if (error) throw error;
     return data;
-  },
-
-  async createTransaction(transaction: Omit<Transaction, "id" | "created_at"> & { order_no: string }) {
-    const { data, error } = await supabase
-      .from("transactions")
-      .insert(transaction)
-      .select()
-      .single();
-    if (error) throw error;
-    return data;
-  },
-
-  subscribeToTransactions(callback: (payload: any) => void) {
-    return supabase
-      .channel("public:transactions")
-      .on(
-        "postgres_changes",
-        { event: "INSERT", schema: "public", table: "transactions" },
-        callback
-      )
-      .subscribe();
   }
 };

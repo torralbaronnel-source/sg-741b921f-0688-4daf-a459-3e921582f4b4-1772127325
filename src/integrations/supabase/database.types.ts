@@ -149,6 +149,15 @@ export type Database = {
     }
     Functions: {
       get_next_order_number: { Args: { p_shop_id: string }; Returns: string }
+      handle_checkout_with_stock: {
+        Args: {
+          p_items: Json
+          p_payment_method: string
+          p_shop_id: string
+          p_total: number
+        }
+        Returns: Json
+      }
     }
     Enums: {
       [_ in never]: never

@@ -99,33 +99,23 @@ export default function POSPage() {
 
   const handleCheckout = async (paymentMethod: string) => {
     if (cart.length === 0) return;
-    setIsCheckingOut(true);
 
     try {
-      // Get next order number from DB
-      const { data: orderNoData } = await supabase.rpc('get_next_order_number', { p_shop_id: 'default-shop' });
-      const orderNo = orderNoData || `ORD-${Date.now().toString().slice(-6)}`;
+      setIsCheckingOut(true);
+      const { data: user } = await supabase.auth.getUser();
+      const shopId = user?.user?.id || "00000000-0000-0000-0000-000000000000";
 
-      const itemsJson = cart.map(item => ({
-        id: item.id,
-        name: item.name,
-        price: item.price,
-        quantity: item.quantity
-      }));
-
-      const transaction = {
-        shop_id: "default-shop",
-        total: subtotal,
-        payment_method: paymentMethod,
-        items: itemsJson as any,
-        order_no: orderNo
-      };
-
-      const result = await transactionService.createTransaction(transaction);
+      const result = await transactionService.checkout(cart, subtotal, paymentMethod, shopId);
       
-      if (result) {
+      const orderData = result as { id: string; order_no: string };
+      
+      if (orderData && orderData.id) {
+        toast({
+          title: "Order Successful",
+          description: `Order ${orderData.order_no} has been recorded.`,
+        });
         setCart([]);
-        router.push(`/receipt/${result.id}`);
+        router.push(`/receipt/${orderData.id}`);
       }
     } catch (error) {
       console.error("Checkout error:", error);
