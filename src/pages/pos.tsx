@@ -21,6 +21,7 @@ import { Badge } from "@/components/ui/badge";
 import { useToast } from "@/hooks/use-toast";
 import { productService } from "@/services/productService";
 import { transactionService } from "@/services/transactionService";
+import { supabase } from "@/integrations/supabase/client";
 import type { Product, Category, CartItem } from "@/types/pos";
 import { motion, AnimatePresence } from "framer-motion";
 import { useRouter } from "next/router";
