@@ -54,6 +54,7 @@ import { z } from "zod";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { cn } from "@/lib/utils";
+import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from "@/components/ui/alert-dialog";
 
 // --- Validation Schemas ---
 
@@ -196,6 +197,19 @@ export default function InventoryPage() {
       }
       setProducts(prev => prev.filter(p => p.id !== id));
       toast({ title: "Deleted", description: "Product removed from inventory" });
+    }
+  };
+
+  const [isDeleteConfirmOpen, setIsDeleteConfirmOpen] = useState(false);
+  const [productToDelete, setProductToDelete] = useState<Product | null>(null);
+  const [deleteConfirmText, setDeleteConfirmText] = useState("");
+
+  const confirmDelete = () => {
+    if (productToDelete && deleteConfirmText === productToDelete.name) {
+      deleteProduct(productToDelete.id, productToDelete.image);
+      setIsDeleteConfirmOpen(false);
+      setProductToDelete(null);
+      setDeleteConfirmText("");
     }
   };
 
@@ -894,6 +908,35 @@ export default function InventoryPage() {
           </form>
         </SheetContent>
       </Sheet>
+
+      <AlertDialog open={isDeleteConfirmOpen} onOpenChange={setIsDeleteConfirmOpen}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Are you absolutely sure?</AlertDialogTitle>
+            <AlertDialogDescription>
+              This action cannot be undone. To delete <strong>{productToDelete?.name}</strong>, please type the name below:
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <div className="py-4">
+            <Input
+              value={deleteConfirmText}
+              onChange={(e) => setDeleteConfirmText(e.target.value)}
+              placeholder="Type product name here..."
+              className={deleteConfirmText === productToDelete?.name ? "border-green-500" : "border-red-200"}
+            />
+          </div>
+          <AlertDialogFooter>
+            <AlertDialogCancel onClick={() => { setProductToDelete(null); setDeleteConfirmText(""); }}>Cancel</AlertDialogCancel>
+            <AlertDialogAction
+              onClick={confirmDelete}
+              disabled={deleteConfirmText !== productToDelete?.name}
+              className="bg-red-600 hover:bg-red-700"
+            >
+              Confirm Delete
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
 
       <style jsx global>{`
         @keyframes spin-slow {

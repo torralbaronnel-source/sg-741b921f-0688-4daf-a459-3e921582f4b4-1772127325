@@ -21,13 +21,14 @@ import {
   DialogTitle 
 } from "@/components/ui/dialog";
 import { Badge } from "@/components/ui/badge";
-import { MOCK_PRODUCTS, INITIAL_SETTINGS, MOCK_CATEGORIES } from "@/lib/mock-data";
+import { MOCK_PRODUCTS, MOCK_CATEGORIES, INITIAL_SETTINGS } from "@/lib/mock-data";
 import { Product, CartItem, Sale, PaymentMethod, AppSettings } from "@/types/pos";
 import { cn } from "@/lib/utils";
 import Link from "next/link";
 
 export default function POSPage() {
-  const [products, setProducts] = useState<Product[]>(MOCK_PRODUCTS);
+  // In a real app, this would use a global state or DB. For now, we'll simulate the connection.
+  const [products, setProducts] = useState(MOCK_PRODUCTS);
   const [cart, setCart] = useState<CartItem[]>([]);
   const [searchQuery, setSearchQuery] = useState("");
   const [selectedCategoryId, setSelectedCategoryId] = useState<string>("All");
@@ -89,7 +90,18 @@ export default function POSPage() {
     }).filter(item => item.quantity > 0));
   };
 
-  const handleCheckout = (method: PaymentMethod) => {
+  const handleCheckout = (paymentMethod: string) => {
+    // 1. Decrement stock
+    const updatedProducts = products.map(p => {
+      const cartItem = cart.find(item => item.id === p.id);
+      if (cartItem) {
+        return { ...p, stock: Math.max(0, p.stock - cartItem.quantity) };
+      }
+      return p;
+    });
+    setProducts(updatedProducts);
+
+    // 2. Process sale...
     const sale: Sale = {
       id: `sale-${Date.now()}`,
       orderNo: `ORD-${Math.floor(1000 + Math.random() * 9000)}`,
@@ -98,14 +110,10 @@ export default function POSPage() {
       subtotal,
       tax,
       total: totalDue,
-      paymentMethod: method,
+      paymentMethod: paymentMethod as PaymentMethod,
       timestamp: new Date().toISOString(),
       status: "PAID"
     };
-    setProducts(prev => prev.map(p => {
-      const cartItem = cart.find(item => item.id === p.id);
-      return cartItem ? { ...p, stock: p.stock - cartItem.quantity } : p;
-    }));
     setLastSale(sale);
     setCart([]);
     setIsCheckoutOpen(false);
