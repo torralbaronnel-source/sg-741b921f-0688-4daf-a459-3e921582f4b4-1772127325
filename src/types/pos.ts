@@ -4,18 +4,20 @@ export interface Category {
   id: string;
   name: string;
   image?: string;
-  color?: string;
+  color: string;
+  emoji?: string;
 }
 
 export interface Product {
   id: string;
   name: string;
+  sku: string;
   price: number;
   cost: number;
-  categoryId: string;
   stock: number;
+  categoryId: string;
   image?: string;
-  sku: string;
+  imageUrl?: string;
   minStock?: number;
 }
 

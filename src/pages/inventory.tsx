@@ -286,9 +286,10 @@ export default function InventoryPage() {
     if (savedCategories) setCategories(JSON.parse(savedCategories));
   }, []);
 
+  // Master Sync to POS
   useEffect(() => {
-    if (products.length > 0) localStorage.setItem("pocketpos_products", JSON.stringify(products));
-    if (categories.length > 0) localStorage.setItem("pocketpos_categories", JSON.stringify(categories));
+    localStorage.setItem("pocketpos_products", JSON.stringify(products));
+    localStorage.setItem("pocketpos_categories", JSON.stringify(categories));
   }, [products, categories]);
 
   return (

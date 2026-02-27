@@ -29,31 +29,43 @@ import Link from "next/link";
 
 export default function POSPage() {
   const [products, setProducts] = useState<Product[]>([]);
-  const [categories, setCategories] = useState<Category[]>(MOCK_CATEGORIES);
+  const [categories, setCategories] = useState<Category[]>([]);
   const [cart, setCart] = useState<CartItem[]>([]);
   const [searchQuery, setSearchQuery] = useState("");
   const [selectedCategoryId, setSelectedCategoryId] = useState<string>("All");
-  const [settings, setSettings] = useState<AppSettings>(INITIAL_SETTINGS);
+  const [settings, setSettings] = useState<AppSettings | null>(null);
   const [isCheckoutOpen, setIsCheckoutOpen] = useState(false);
   const [isOrderPanelOpen, setIsOrderPanelOpen] = useState(false);
   const [lastSale, setLastSale] = useState<Sale | null>(null);
   const searchInputRef = useRef<HTMLInputElement>(null);
 
   const totalDue = useMemo(() => cart.reduce((acc, item) => acc + (item.price * item.quantity), 0), [cart]);
-  const subtotal = useMemo(() => totalDue / (1 + (settings.vatRate / 100)), [totalDue, settings.vatRate]);
+  const subtotal = useMemo(() => totalDue / (1 + (settings?.vatRate || 0) / 100), [totalDue, settings?.vatRate]);
   const tax = useMemo(() => totalDue - subtotal, [totalDue, subtotal]);
 
-  // Load Data Layer
+  // Load Master Data from Inventory Studio
   useEffect(() => {
     const savedProducts = localStorage.getItem("pocketpos_products");
     const savedCategories = localStorage.getItem("pocketpos_categories");
     const savedSettings = localStorage.getItem("pocketpos_settings");
     
-    if (savedProducts) setProducts(JSON.parse(savedProducts));
-    else setProducts(MOCK_PRODUCTS);
+    if (savedProducts) {
+      setProducts(JSON.parse(savedProducts));
+    } else {
+      setProducts(MOCK_PRODUCTS);
+    }
     
-    if (savedCategories) setCategories(JSON.parse(savedCategories));
-    if (savedSettings) setSettings(JSON.parse(savedSettings));
+    if (savedCategories) {
+      setCategories(JSON.parse(savedCategories));
+    } else {
+      setCategories(MOCK_CATEGORIES);
+    }
+    
+    if (savedSettings) {
+      setSettings(JSON.parse(savedSettings));
+    } else {
+      setSettings(INITIAL_SETTINGS);
+    }
   }, []);
 
   const filteredProducts = useMemo(() => {
@@ -116,6 +128,36 @@ export default function POSPage() {
     setLastSale(sale);
     setCart([]);
     setIsCheckoutOpen(false);
+  };
+
+  // Product Tile Rendering logic
+  const renderProductImage = (product: Product) => {
+    const category = categories.find(c => c.id === product.categoryId);
+    const categoryColor = category?.color || "#cbd5e1";
+    const categoryEmoji = category?.emoji || "📦";
+    const imageUrl = product.image || product.imageUrl;
+
+    if (imageUrl) {
+      return (
+        <img 
+          src={imageUrl} 
+          alt={product.name}
+          className="w-full h-full object-cover group-hover:scale-110 transition-transform duration-500"
+          onError={(e) => {
+            (e.target as HTMLImageElement).src = `https://ui-avatars.com/api/?name=${encodeURIComponent(product.name)}&background=${categoryColor.replace('#', '')}&color=fff&size=128`;
+          }}
+        />
+      );
+    }
+
+    return (
+      <div 
+        className="w-full h-full flex items-center justify-center text-3xl"
+        style={{ backgroundColor: `${categoryColor}20`, color: categoryColor }}
+      >
+        {categoryEmoji}
+      </div>
+    );
   };
 
   return (
@@ -197,11 +239,7 @@ export default function POSPage() {
                   >
                     <div className="absolute top-0 left-0 w-1 h-full" style={{ backgroundColor: category?.color }} />
                     <div className="aspect-square bg-slate-50 flex items-center justify-center overflow-hidden rounded-xl">
-                      {product.image ? (
-                        <img src={product.image} alt="" className="w-full h-full object-cover group-hover:scale-110 transition-transform duration-500" />
-                      ) : (
-                        <ImageIcon className="w-8 h-8 text-slate-200" />
-                      )}
+                      {renderProductImage(product)}
                     </div>
                     <div className="p-2">
                       <div className="font-bold text-xs text-slate-900 line-clamp-1">{product.name}</div>
@@ -237,8 +275,8 @@ export default function POSPage() {
           <div className="flex-1 overflow-y-auto p-4 space-y-3 custom-scrollbar">
             {cart.map(item => (
               <div key={item.id} className="flex items-center gap-3 bg-slate-50 p-3 rounded-2xl border border-slate-100">
-                <div className="h-10 w-10 bg-white rounded-lg overflow-hidden flex-shrink-0 shadow-sm">
-                  {item.image ? <img src={item.image} className="w-full h-full object-cover" /> : <ImageIcon className="w-4 h-4 m-auto" />}
+                <div className="h-10 w-10 bg-white rounded-lg overflow-hidden flex-shrink-0 shadow-sm flex items-center justify-center">
+                  {renderProductImage(item)}
                 </div>
                 <div className="flex-1 min-w-0">
                   <div className="font-bold text-xs text-slate-900 truncate">{item.name}</div>
@@ -256,7 +294,7 @@ export default function POSPage() {
           <div className="p-4 border-t bg-slate-50/50 space-y-3">
             <div className="space-y-1.5 text-[10px] font-bold text-slate-500 uppercase">
               <div className="flex justify-between"><span>Subtotal</span><span>₱{subtotal.toFixed(2)}</span></div>
-              <div className="flex justify-between"><span>VAT (12%)</span><span>₱{tax.toFixed(2)}</span></div>
+              <div className="flex justify-between"><span>VAT ({settings?.vatRate || 0}%)</span><span>₱{tax.toFixed(2)}</span></div>
               <div className="flex justify-between pt-2 border-t text-base font-black text-slate-900">
                 <span>TOTAL</span>
                 <span className="text-blue-600">₱{totalDue.toFixed(2)}</span>
@@ -298,40 +336,25 @@ export default function POSPage() {
           <div className="bg-white p-6 md:p-8 max-h-[85vh] overflow-y-auto custom-scrollbar">
             {lastSale && (
               <div className="receipt-container bg-slate-50 p-6 rounded-xl border border-slate-200 font-mono shadow-inner">
-                {/* Header */}
                 <div className="text-center space-y-1 mb-6">
-                  <h3 className="font-black text-base uppercase tracking-tight">{settings.shopName}</h3>
-                  <p className="text-[9px] text-slate-500 uppercase leading-tight">{settings.address}</p>
+                  <h3 className="font-black text-base uppercase tracking-tight">{settings?.shopName}</h3>
+                  <p className="text-[9px] text-slate-500 uppercase leading-tight">{settings?.address}</p>
                   <div className="flex justify-center gap-4 text-[9px] text-slate-500 mt-1">
-                    <span>TIN: {settings.tin}</span>
-                    <span>TEL: {settings.phone}</span>
+                    <span>TIN: {settings?.tin}</span>
+                    <span>TEL: {settings?.phone}</span>
                   </div>
                   <div className="border-y border-dashed border-slate-300 py-1 my-3">
                     <p className="text-[10px] font-black uppercase">Official Receipt</p>
                   </div>
                 </div>
 
-                {/* Meta */}
                 <div className="space-y-0.5 mb-4 text-[9px] font-bold">
-                  <div className="flex justify-between">
-                    <span>RECEIPT NO:</span>
-                    <span>{lastSale.orderNo}</span>
-                  </div>
-                  <div className="flex justify-between">
-                    <span>DATE:</span>
-                    <span>{new Date(lastSale.timestamp).toLocaleDateString()}</span>
-                  </div>
-                  <div className="flex justify-between">
-                    <span>TIME:</span>
-                    <span>{new Date(lastSale.timestamp).toLocaleTimeString()}</span>
-                  </div>
-                  <div className="flex justify-between">
-                    <span>CASHIER:</span>
-                    <span>ADMIN</span>
-                  </div>
+                  <div className="flex justify-between"><span>RECEIPT NO:</span><span>{lastSale.orderNo}</span></div>
+                  <div className="flex justify-between"><span>DATE:</span><span>{new Date(lastSale.timestamp).toLocaleDateString()}</span></div>
+                  <div className="flex justify-between"><span>TIME:</span><span>{new Date(lastSale.timestamp).toLocaleTimeString()}</span></div>
+                  <div className="flex justify-between"><span>CASHIER:</span><span>ADMIN</span></div>
                 </div>
 
-                {/* Items */}
                 <div className="space-y-1.5 mb-6">
                   <div className="flex justify-between text-[9px] font-black border-b border-dashed border-slate-300 pb-1 uppercase">
                     <span className="w-6">QTY</span>
@@ -347,20 +370,15 @@ export default function POSPage() {
                   ))}
                 </div>
 
-                {/* Summary */}
                 <div className="border-t border-dashed border-slate-300 pt-3 space-y-1">
-                  {settings.showVat && (
-                    <>
-                      <div className="flex justify-between text-[9px] font-bold">
-                        <span className="text-slate-500">VATABLE SALES</span>
-                        <span>₱{lastSale.subtotal.toFixed(2)}</span>
-                      </div>
-                      <div className="flex justify-between text-[9px] font-bold">
-                        <span className="text-slate-500">VAT AMOUNT (12%)</span>
-                        <span>₱{lastSale.tax.toFixed(2)}</span>
-                      </div>
-                    </>
-                  )}
+                  <div className="flex justify-between text-[9px] font-bold">
+                    <span className="text-slate-500">VATABLE SALES</span>
+                    <span>₱{lastSale.subtotal.toFixed(2)}</span>
+                  </div>
+                  <div className="flex justify-between text-[9px] font-bold">
+                    <span className="text-slate-500">VAT AMOUNT ({settings?.vatRate || 12}%)</span>
+                    <span>₱{lastSale.tax.toFixed(2)}</span>
+                  </div>
                   <div className="flex justify-between text-sm font-black pt-2 text-slate-900">
                     <span>TOTAL DUE</span>
                     <span>₱{lastSale.total.toFixed(2)}</span>
@@ -371,21 +389,9 @@ export default function POSPage() {
                   </div>
                 </div>
 
-                {/* Footer */}
                 <div className="mt-8 text-center space-y-3">
-                  <p className="text-[10px] font-black uppercase tracking-widest">{settings.receiptHeader}</p>
-                  <div className="flex justify-center py-2">
-                     <div className="w-24 h-24 bg-white p-2 rounded-lg border border-slate-200 shadow-sm flex items-center justify-center">
-                       <div className="w-full h-full bg-slate-900 rounded-[2px]" /> {/* Simulated QR */}
-                     </div>
-                  </div>
-                  <p className="text-[8px] text-slate-400 leading-relaxed whitespace-pre-line font-medium italic">
-                    {settings.receiptFooter}
-                  </p>
-                  <div className="pt-4 space-y-1">
-                    <p className="text-[7px] text-slate-300 font-bold uppercase tracking-widest">Powered by PocketPOS PH</p>
-                    <p className="text-[7px] text-slate-300 font-medium tracking-tighter">POS Terminal ID: T001-M01</p>
-                  </div>
+                  <p className="text-[10px] font-black uppercase tracking-widest">THANK YOU FOR YOUR PATRONAGE</p>
+                  <p className="text-[7px] text-slate-300 font-bold uppercase tracking-widest">Powered by PocketPOS PH</p>
                 </div>
               </div>
             )}
