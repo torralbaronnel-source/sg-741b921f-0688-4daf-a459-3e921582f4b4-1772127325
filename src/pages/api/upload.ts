@@ -44,8 +44,12 @@ export default async function handler(
     const fileName = path.basename(file.filepath);
     const publicPath = `/uploads/${fileName}`;
 
-    return res.status(200).json({ url: publicPath });
-  } catch (err) {
+    // Respond with the file path
+    return res.status(200).json({ 
+      url: `/uploads/${fileName}`,
+      name: fileName 
+    });
+  } catch (error) {
     return res.status(500).json({ error: "Upload failed" });
   }
 }

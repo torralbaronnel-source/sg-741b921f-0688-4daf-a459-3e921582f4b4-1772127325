@@ -131,7 +131,7 @@ export default function InventoryPage() {
   });
 
   // Handle Image Upload
-  const handleImageUpload = async (e: React.ChangeEvent<HTMLInputElement>, type: "product" | "category") => {
+  const handleImageUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (!file) return;
 
@@ -147,15 +147,15 @@ export default function InventoryPage() {
       const data = await res.json();
       
       if (data.filePath) {
-        if (type === "product") {
-          productForm.setValue("image", data.filePath);
-        } else {
-          categoryForm.setValue("image", data.filePath);
-        }
+        productForm.setValue("image", data.filePath);
         toast({ title: "Success", description: "Image uploaded successfully" });
       }
     } catch (error) {
-      toast({ variant: "destructive", title: "Upload Failed", description: "Could not upload image" });
+      toast({
+        title: "Upload failed",
+        description: "Could not upload image. Please try again.",
+        variant: "destructive",
+      });
     } finally {
       setIsUploading(false);
     }
@@ -693,7 +693,7 @@ export default function InventoryPage() {
                         type="file" 
                         accept="image/*" 
                         className="absolute inset-0 opacity-0 cursor-pointer" 
-                        onChange={(e) => handleImageUpload(e, "product")}
+                        onChange={(e) => handleImageUpload(e)}
                         disabled={isUploading}
                       />
                     </div>
@@ -863,7 +863,7 @@ export default function InventoryPage() {
                         type="file" 
                         accept="image/*" 
                         className="absolute inset-0 opacity-0 cursor-pointer" 
-                        onChange={(e) => handleImageUpload(e, "category")}
+                        onChange={(e) => handleImageUpload(e)}
                         disabled={isUploading}
                       />
                     </div>
