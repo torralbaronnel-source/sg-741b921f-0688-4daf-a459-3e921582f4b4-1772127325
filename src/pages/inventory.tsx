@@ -155,7 +155,14 @@ export default function InventoryPage() {
     } else {
       const newProduct: Product = {
         id: `p-${Date.now()}`,
-        ...data,
+        name: data.name,
+        sku: data.sku,
+        price: data.price,
+        cost: data.cost,
+        stock: data.stock,
+        minStock: data.minStock,
+        categoryId: data.categoryId,
+        image: data.image,
       };
       setProducts(prev => [newProduct, ...prev]);
       toast({ title: "Created", description: "Product added to inventory" });
@@ -187,7 +194,8 @@ export default function InventoryPage() {
     } else {
       const newCategory: Category = {
         id: `cat-${Date.now()}`,
-        ...data,
+        name: data.name,
+        image: data.image,
         color: "#2563EB" // Default blue for new categories
       };
       setCategories(prev => [...prev, newCategory]);
