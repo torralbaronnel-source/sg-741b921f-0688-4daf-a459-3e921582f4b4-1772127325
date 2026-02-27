@@ -74,10 +74,22 @@ const productSchema = z.object({
 const categorySchema = z.object({
   name: z.string().min(2, "Name must be at least 2 characters"),
   image: z.string().optional(),
+  color: z.string().min(1, "Please select a color group"),
 });
 
 type ProductFormData = z.infer<typeof productSchema>;
 type CategoryFormData = z.infer<typeof categorySchema>;
+
+const CATEGORY_COLORS = [
+  { name: "Blue", value: "blue", bg: "bg-blue-500", text: "text-blue-500" },
+  { name: "Green", value: "green", bg: "bg-green-500", text: "text-green-500" },
+  { name: "Amber", value: "amber", bg: "bg-amber-500", text: "text-amber-500" },
+  { name: "Purple", value: "purple", bg: "bg-purple-500", text: "text-purple-500" },
+  { name: "Rose", value: "rose", bg: "bg-rose-500", text: "text-rose-500" },
+  { name: "Indigo", value: "indigo", bg: "bg-indigo-500", text: "text-indigo-500" },
+  { name: "Emerald", value: "emerald", bg: "bg-emerald-500", text: "text-emerald-500" },
+  { name: "Cyan", value: "cyan", bg: "bg-cyan-500", text: "text-cyan-500" },
+];
 
 export default function InventoryPage() {
   const { toast } = useToast();
@@ -112,7 +124,8 @@ export default function InventoryPage() {
     resolver: zodResolver(categorySchema),
     defaultValues: {
       name: "",
-      image: ""
+      image: "",
+      color: ""
     }
   });
 
@@ -196,7 +209,7 @@ export default function InventoryPage() {
         id: `cat-${Date.now()}`,
         name: data.name,
         image: data.image,
-        color: "#2563EB" // Default blue for new categories
+        color: data.color
       };
       setCategories(prev => [...prev, newCategory]);
       toast({ title: "Created", description: "New category added" });
@@ -246,6 +259,11 @@ export default function InventoryPage() {
     return { totalItems, totalValue, potentialSales, lowStock };
   }, [products]);
 
+  const usedColors = useMemo(() => 
+    categories.map(c => c.color).filter(Boolean) as string[], 
+    [categories]
+  );
+
   return (
     <div className="min-h-screen bg-[#F5F6F8] pb-20 md:pb-0">
       <SEO title="Inventory | PocketPOS PH" />
@@ -291,7 +309,7 @@ export default function InventoryPage() {
                   setIsProductDrawerOpen(true);
                 } else {
                   setEditingCategory(null);
-                  categoryForm.reset({ name: "", image: "" });
+                  categoryForm.reset({ name: "", image: "", color: "" });
                   setIsCategoryDrawerOpen(true);
                 }
               }}
@@ -418,7 +436,7 @@ export default function InventoryPage() {
                       const isLow = product.stock <= (product.minStock || 5);
                       const margin = product.price - product.cost;
                       const marginPercent = ((margin / product.price) * 100).toFixed(0);
-                      const categoryName = categories.find(c => c.id === product.categoryId)?.name || "Uncategorized";
+                      const category = categories.find(c => c.id === product.categoryId);
 
                       return (
                         <tr key={product.id} className="hover:bg-slate-50/50 transition-colors group">
@@ -439,8 +457,18 @@ export default function InventoryPage() {
                             </div>
                           </td>
                           <td className="px-6 py-4">
-                            <Badge variant="outline" className="bg-slate-50 text-slate-600 font-bold text-[10px] rounded-lg px-2 border-slate-200 uppercase">
-                              {categoryName}
+                            <Badge variant="outline" className={cn(
+                              "capitalize",
+                              category?.color === "blue" && "bg-blue-50 text-blue-700 border-blue-200",
+                              category?.color === "green" && "bg-green-50 text-green-700 border-green-200",
+                              category?.color === "amber" && "bg-amber-50 text-amber-700 border-amber-200",
+                              category?.color === "purple" && "bg-purple-50 text-purple-700 border-purple-200",
+                              category?.color === "rose" && "bg-rose-50 text-rose-700 border-rose-200",
+                              category?.color === "indigo" && "bg-indigo-50 text-indigo-700 border-indigo-200",
+                              category?.color === "emerald" && "bg-emerald-50 text-emerald-700 border-emerald-200",
+                              category?.color === "cyan" && "bg-cyan-50 text-cyan-700 border-cyan-200"
+                            )}>
+                              {category?.name || "Uncategorized"}
                             </Badge>
                           </td>
                           <td className="px-6 py-4">
@@ -523,9 +551,21 @@ export default function InventoryPage() {
                     <div className="absolute inset-0 bg-gradient-to-t from-black/60 via-transparent to-transparent" />
                     <div className="absolute bottom-4 left-4 right-4">
                       <h3 className="text-white font-black text-lg tracking-tight uppercase">{category.name}</h3>
-                      <p className="text-white/80 text-[10px] font-bold uppercase tracking-widest">
-                        {products.filter(p => p.categoryId === category.id).length} Products
-                      </p>
+                      <div className="flex items-center gap-2 mt-1">
+                        <div className={cn("w-2 h-2 rounded-full", 
+                          category.color === "blue" ? "bg-blue-400" :
+                          category.color === "green" ? "bg-green-400" :
+                          category.color === "amber" ? "bg-amber-400" :
+                          category.color === "purple" ? "bg-purple-400" :
+                          category.color === "rose" ? "bg-rose-400" :
+                          category.color === "indigo" ? "bg-indigo-400" :
+                          category.color === "emerald" ? "bg-emerald-400" :
+                          category.color === "cyan" ? "bg-cyan-400" : "bg-slate-400"
+                        )} />
+                        <p className="text-white/80 text-[10px] font-bold uppercase tracking-widest">
+                          {products.filter(p => p.categoryId === category.id).length} Products
+                        </p>
+                      </div>
                     </div>
                     <div className="absolute top-2 right-2 flex gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
                       <Button 
@@ -534,7 +574,11 @@ export default function InventoryPage() {
                         className="h-8 w-8 bg-white/90 backdrop-blur-md shadow-sm"
                         onClick={() => {
                           setEditingCategory(category);
-                          categoryForm.reset({ name: category.name, image: category.image || "" });
+                          categoryForm.reset({ 
+                            name: category.name, 
+                            image: category.image || "",
+                            color: category.color || ""
+                          });
                           setIsCategoryDrawerOpen(true);
                         }}
                       >
@@ -556,7 +600,7 @@ export default function InventoryPage() {
               <button 
                 onClick={() => {
                   setEditingCategory(null);
-                  categoryForm.reset({ name: "", image: "" });
+                  categoryForm.reset({ name: "", image: "", color: "" });
                   setIsCategoryDrawerOpen(true);
                 }}
                 className="aspect-video rounded-xl border-2 border-dashed border-slate-200 flex flex-col items-center justify-center gap-3 text-slate-400 hover:border-blue-400 hover:text-blue-500 hover:bg-blue-50 transition-all duration-300 group"
@@ -665,7 +709,7 @@ export default function InventoryPage() {
                   <Label className="text-[11px] font-bold text-slate-500 uppercase tracking-widest">Category</Label>
                   <Select 
                     onValueChange={(val) => productForm.setValue("categoryId", val)} 
-                    defaultValue={productForm.watch("categoryId")}
+                    value={productForm.watch("categoryId")}
                   >
                     <SelectTrigger className={cn("bg-slate-50 border-slate-200 h-12 font-bold", productForm.formState.errors.categoryId && "border-red-500")}>
                       <SelectValue placeholder="Select..." />
@@ -808,6 +852,36 @@ export default function InventoryPage() {
                   className={cn("bg-slate-50 border-slate-200 h-12 font-bold uppercase", categoryForm.formState.errors.name && "border-red-500")}
                 />
                 {categoryForm.formState.errors.name && <p className="text-xs font-bold text-red-500">{categoryForm.formState.errors.name.message}</p>}
+              </div>
+
+              <div className="space-y-2">
+                <Label className="text-[11px] font-bold text-slate-500 uppercase tracking-widest">Category Color Group</Label>
+                <div className="flex flex-wrap gap-2">
+                  {CATEGORY_COLORS.map((color) => {
+                    const isUsed = usedColors.includes(color.value) && editingCategory?.color !== color.value;
+                    return (
+                      <button
+                        key={color.value}
+                        type="button"
+                        disabled={isUsed}
+                        onClick={() => categoryForm.setValue("color", color.value)}
+                        className={cn(
+                          "w-10 h-10 rounded-full border-2 transition-all flex items-center justify-center",
+                          categoryForm.watch("color") === color.value 
+                            ? "border-slate-900 scale-110" 
+                            : "border-transparent",
+                          isUsed ? "opacity-20 cursor-not-allowed grayscale" : "hover:scale-105"
+                        )}
+                        title={isUsed ? `${color.name} is already used` : color.name}
+                      >
+                        <div className={cn("w-6 h-6 rounded-full shadow-sm", color.bg)} />
+                      </button>
+                    );
+                  })}
+                </div>
+                {categoryForm.formState.errors.color && (
+                  <p className="text-xs font-bold text-red-500 mt-1">{categoryForm.formState.errors.color.message}</p>
+                )}
               </div>
             </div>
 

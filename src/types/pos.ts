@@ -4,7 +4,7 @@ export interface Category {
   id: string;
   name: string;
   image?: string;
-  color: string;
+  color?: string;
 }
 
 export interface Product {

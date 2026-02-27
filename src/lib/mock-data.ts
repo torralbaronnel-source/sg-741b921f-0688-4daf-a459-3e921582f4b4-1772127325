@@ -1,9 +1,9 @@
 import { Product, Category, Sale, InventoryMovement, AppSettings } from "@/types/pos"
 
 export const MOCK_CATEGORIES: Category[] = [
-  { id: "cat-1", name: "Coffee", color: "#6F4E37", image: "https://images.unsplash.com/photo-1495474472287-4d71bcdd2085?w=100&h=100&fit=crop" },
-  { id: "cat-2", name: "Pastries", color: "#D2B48C", image: "https://images.unsplash.com/photo-1550617931-e17a7b70dce2?w=100&h=100&fit=crop" },
-  { id: "cat-3", name: "Merch", color: "#2563EB", image: "https://images.unsplash.com/photo-1521572267360-ee0c2909d518?w=100&h=100&fit=crop" },
+  { id: "cat-1", name: "Coffee", image: "https://images.unsplash.com/photo-1509042239860-f550ce710b93?w=400", color: "blue" },
+  { id: "cat-2", name: "Pastries", image: "https://images.unsplash.com/photo-1555507036-ab1f4038808a?w=400", color: "amber" },
+  { id: "cat-3", name: "Bottled Drinks", image: "https://images.unsplash.com/photo-1622483767028-3f66f32aef97?w=400", color: "green" },
 ];
 
 export const MOCK_PRODUCTS: Product[] = [

@@ -178,11 +178,22 @@ export default function POSPage() {
             <div className="grid grid-cols-2 xs:grid-cols-3 sm:grid-cols-4 md:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5 2xl:grid-cols-6 gap-4">
               {filteredProducts.map(product => {
                 const isLow = product.stock <= (product.minStock || 5);
+                const category = MOCK_CATEGORIES.find(c => c.id === product.categoryId);
                 return (
-                  <button
+                  <div
                     key={product.id}
                     onClick={() => addToCart(product)}
-                    className="group relative flex flex-col text-left bg-white border border-slate-200 rounded-2xl overflow-hidden hover:border-blue-500 hover:shadow-xl transition-all active:scale-[0.98] border-b-4 border-b-slate-100"
+                    className={cn(
+                      "group bg-white rounded-2xl border border-slate-200 p-3 transition-all hover:shadow-lg hover:border-blue-200 cursor-pointer active:scale-95 flex flex-col relative overflow-hidden",
+                      category?.color === "blue" && "border-l-4 border-l-blue-500",
+                      category?.color === "green" && "border-l-4 border-l-green-500",
+                      category?.color === "amber" && "border-l-4 border-l-amber-500",
+                      category?.color === "purple" && "border-l-4 border-l-purple-500",
+                      category?.color === "rose" && "border-l-4 border-l-rose-500",
+                      category?.color === "indigo" && "border-l-4 border-l-indigo-500",
+                      category?.color === "emerald" && "border-l-4 border-l-emerald-500",
+                      category?.color === "cyan" && "border-l-4 border-l-cyan-500"
+                    )}
                   >
                     <div className="aspect-square bg-slate-50 flex items-center justify-center overflow-hidden">
                       {product.image ? (
@@ -200,7 +211,7 @@ export default function POSPage() {
                         </Badge>
                       </div>
                     </div>
-                  </button>
+                  </div>
                 );
               })}
             </div>
