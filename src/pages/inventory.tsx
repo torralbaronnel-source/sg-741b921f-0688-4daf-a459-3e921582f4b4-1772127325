@@ -1,24 +1,30 @@
-import React, { useState, useMemo, useRef } from "react";
+import React, { useState, useMemo, useRef, useEffect } from "react";
 import Link from "next/link";
 import { 
   Plus, 
   Search, 
-  ArrowLeft, 
+  MoreVertical, 
   Package, 
-  AlertTriangle, 
-  TrendingUp, 
-  DollarSign,
-  MoreVertical,
-  Edit,
+  TrendingDown, 
+  AlertCircle,
+  Pencil,
   Trash2,
-  Image as ImageIcon,
+  ChevronRight,
+  RefreshCw,
   Upload,
   X,
-  RefreshCcw,
-  Check,
-  ChevronRight,
-  ChevronLeft
+  CheckCircle2,
+  DollarSign,
+  Tag,
+  ArrowLeft,
+  AlertTriangle,
+  TrendingUp,
+  Image as ImageIcon,
+  Edit
 } from "lucide-react";
+import { z } from "zod";
+import { useForm } from "react-hook-form";
+import { zodResolver } from "@hookform/resolvers/zod";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
@@ -58,6 +64,29 @@ import {
 import { MOCK_PRODUCTS, MOCK_CATEGORIES } from "@/lib/mock-data";
 import { Product, Category } from "@/types/pos";
 import { toast } from "@/hooks/use-toast";
+import { cn } from "@/lib/utils";
+
+const productSchema = z.object({
+  name: z.string().min(2, "Name must be at least 2 characters"),
+  sku: z.string().min(3, "SKU must be at least 3 characters").regex(/^[a-zA-Z0-9-]+$/, "SKU must be alphanumeric (letters, numbers, dashes)"),
+  price: z.coerce.number().positive("Price must be greater than 0"),
+  cost: z.coerce.number().min(0, "Cost cannot be negative"),
+  stock: z.coerce.number().min(0, "Stock cannot be negative"),
+  minStock: z.coerce.number().min(1, "Minimum stock alert must be at least 1"),
+  categoryId: z.string().min(1, "Please select a category"),
+  image: z.string().optional(),
+}).refine((data) => data.price >= data.cost, {
+  message: "Selling price should be greater than or equal to cost",
+  path: ["price"],
+});
+
+const categorySchema = z.object({
+  name: z.string().min(2, "Category name must be at least 2 characters"),
+  image: z.string().optional(),
+});
+
+type ProductFormData = z.infer<typeof productSchema>;
+type CategoryFormData = z.infer<typeof categorySchema>;
 
 export default function InventoryPage() {
   const [products, setProducts] = useState<Product[]>(MOCK_PRODUCTS);
@@ -71,6 +100,60 @@ export default function InventoryPage() {
   // Form States
   const [uploading, setUploading] = useState(false);
   const fileInputRef = useRef<HTMLInputElement>(null);
+
+  const {
+    register,
+    handleSubmit,
+    reset,
+    setValue,
+    watch,
+    formState: { errors },
+  } = useForm<ProductFormData>({
+    resolver: zodResolver(productSchema),
+    defaultValues: {
+      name: "",
+      sku: "",
+      price: 0,
+      cost: 0,
+      stock: 0,
+      minStock: 10,
+      categoryId: "",
+      image: ""
+    }
+  });
+
+  const {
+    register: registerCat,
+    handleSubmit: handleSubmitCat,
+    reset: resetCat,
+    setValue: setValueCat,
+    formState: { errors: catErrors },
+  } = useForm<CategoryFormData>({
+    resolver: zodResolver(categorySchema),
+    defaultValues: {
+      name: "",
+      image: ""
+    }
+  });
+
+  const watchPrice = watch("price");
+  const watchCost = watch("cost");
+
+  // Sync form with editingProduct state
+  useEffect(() => {
+    if (editingProduct) {
+      reset({
+        name: editingProduct.name,
+        sku: editingProduct.sku,
+        price: editingProduct.price,
+        cost: editingProduct.cost,
+        stock: editingProduct.stock,
+        minStock: editingProduct.minStock || 10,
+        categoryId: editingProduct.categoryId,
+        image: editingProduct.image || ""
+      });
+    }
+  }, [editingProduct, reset]);
 
   // Stats
   const totalItems = products.length;
@@ -106,6 +189,7 @@ export default function InventoryPage() {
       const data = await res.json();
       
       if (data.url) {
+        setValue("image", data.url);
         if (editingProduct) {
           setEditingProduct({ ...editingProduct, image: data.url });
         }
@@ -117,19 +201,24 @@ export default function InventoryPage() {
     }
   };
 
-  const handleSaveProduct = (e: React.FormEvent) => {
-    e.preventDefault();
+  const onSubmitProduct = (data: ProductFormData) => {
     if (!editingProduct) return;
 
-    if (products.find(p => p.id === editingProduct.id)) {
-      setProducts(products.map(p => p.id === editingProduct.id ? editingProduct : p));
+    const updatedProduct = {
+      ...editingProduct,
+      ...data,
+    };
+
+    if (products.find(p => p.id === updatedProduct.id)) {
+      setProducts(products.map(p => p.id === updatedProduct.id ? updatedProduct : p));
       toast({ title: "Success", description: "Product updated successfully" });
     } else {
-      setProducts([...products, editingProduct]);
+      setProducts([...products, updatedProduct]);
       toast({ title: "Success", description: "Product added successfully" });
     }
     setIsProductDrawerOpen(false);
     setEditingProduct(null);
+    reset();
   };
 
   const handleDeleteProduct = async (id: string) => {
@@ -137,7 +226,6 @@ export default function InventoryPage() {
     if (!product) return;
 
     if (confirm(`Delete ${product.name}? This cannot be undone.`)) {
-      // If product has a local image, delete it from server
       if (product.image && product.image.startsWith("/uploads/")) {
         try {
           await fetch(`/api/delete-image?url=${encodeURIComponent(product.image)}`, {
@@ -149,22 +237,19 @@ export default function InventoryPage() {
       }
 
       setProducts(products.filter(p => p.id !== id));
-      toast({ title: "Deleted", description: "Product and associated image removed" });
+      toast({ title: "Deleted", description: "Product removed" });
     }
   };
 
   const generateSKU = () => {
     const random = Math.floor(1000 + Math.random() * 9000);
-    if (editingProduct) {
-      setEditingProduct({ ...editingProduct, sku: `SKU-${random}` });
-    }
+    setValue("sku", `SKU-${random}`, { shouldValidate: true });
   };
 
   return (
     <div className="min-h-screen bg-[#F5F6F8] pb-20 md:pb-0">
       <SEO title="Inventory Pro | PocketPOS PH" />
       
-      {/* Header */}
       <header className="sticky top-0 z-30 bg-white/80 backdrop-blur-md border-b border-slate-200 px-4 py-3">
         <div className="max-w-7xl mx-auto flex items-center justify-between">
           <div className="flex items-center gap-3">
@@ -180,12 +265,22 @@ export default function InventoryPage() {
             <Button 
               onClick={() => {
                 setEditingProduct({
-                  id: Math.random().toString(36).substr(2, 9),
+                  id: `new-${Date.now()}`,
                   name: "",
                   sku: "",
                   price: 0,
                   cost: 0,
                   stock: 0,
+                  categoryId: "",
+                  image: ""
+                });
+                reset({
+                  name: "",
+                  sku: "",
+                  price: 0,
+                  cost: 0,
+                  stock: 0,
+                  minStock: 10,
                   categoryId: "",
                   image: ""
                 });
@@ -201,7 +296,6 @@ export default function InventoryPage() {
       </header>
 
       <main className="max-w-7xl mx-auto p-4 space-y-6">
-        {/* Stats Grid */}
         <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
           <Card className="border-none shadow-sm bg-white">
             <CardContent className="p-4 flex items-center gap-4">
@@ -249,7 +343,6 @@ export default function InventoryPage() {
           </Card>
         </div>
 
-        {/* Filters & Content */}
         <div className="space-y-4">
           <div className="flex flex-col sm:flex-row gap-4 justify-between items-center bg-white p-3 rounded-2xl shadow-sm border border-slate-100">
             <div className="relative w-full sm:w-96">
@@ -357,11 +450,10 @@ export default function InventoryPage() {
         </div>
       </main>
 
-      {/* Product Drawer */}
       <Sheet open={isProductDrawerOpen} onOpenChange={setIsProductDrawerOpen}>
         <SheetContent side="right" className="w-full sm:max-w-md border-l border-slate-200 p-0 overflow-y-auto">
           {editingProduct && (
-            <form onSubmit={handleSaveProduct} className="flex flex-col h-full">
+            <form onSubmit={handleSubmit(onSubmitProduct)} className="flex flex-col h-full">
               <SheetHeader className="p-6 border-b border-slate-100 bg-white sticky top-0 z-10">
                 <div className="flex items-center justify-between">
                   <SheetTitle className="text-xl font-bold">{editingProduct.id.startsWith('new') ? 'Add Product' : 'Edit Product'}</SheetTitle>
@@ -373,14 +465,13 @@ export default function InventoryPage() {
               </SheetHeader>
 
               <div className="p-6 space-y-6 flex-1">
-                {/* Image Section */}
                 <div className="space-y-3">
                   <Label className="text-sm font-semibold text-slate-700">Product Image</Label>
                   <div className="flex flex-col items-center gap-4">
                     <div className="w-32 h-32 rounded-2xl bg-slate-50 border-2 border-dashed border-slate-200 overflow-hidden flex items-center justify-center relative group">
-                      {editingProduct.image ? (
+                      {watch("image") ? (
                         <>
-                          <img src={editingProduct.image} className="w-full h-full object-cover" alt="Preview" />
+                          <img src={watch("image")} className="w-full h-full object-cover" alt="Preview" />
                           <div className="absolute inset-0 bg-black/40 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center gap-2">
                             <Button 
                               type="button" 
@@ -396,7 +487,7 @@ export default function InventoryPage() {
                               variant="ghost" 
                               size="icon" 
                               className="text-white hover:bg-white/20"
-                              onClick={() => setEditingProduct({...editingProduct, image: ""})}
+                              onClick={() => setValue("image", "")}
                             >
                               <X className="w-5 h-5" />
                             </Button>
@@ -415,7 +506,7 @@ export default function InventoryPage() {
                       )}
                       {uploading && (
                         <div className="absolute inset-0 bg-white/80 flex items-center justify-center">
-                          <RefreshCcw className="w-6 h-6 text-blue-600 animate-spin" />
+                          <RefreshCw className="w-6 h-6 text-blue-600 animate-spin" />
                         </div>
                       )}
                     </div>
@@ -433,41 +524,37 @@ export default function InventoryPage() {
                   <div className="grid gap-2">
                     <Label htmlFor="name" className="text-sm font-semibold">Product Name</Label>
                     <Input 
+                      {...register("name")}
                       id="name" 
-                      required
-                      value={editingProduct.name}
-                      onChange={(e) => setEditingProduct({...editingProduct, name: e.target.value})}
                       placeholder="e.g. Classic Americano"
-                      className="border-slate-200 focus:border-blue-500"
+                      className={cn("border-slate-200 focus:border-blue-500", errors.name && "border-red-500")}
                     />
+                    {errors.name && <p className="text-[10px] text-red-500 font-medium">{errors.name.message}</p>}
                   </div>
 
                   <div className="grid gap-2">
                     <Label htmlFor="sku" className="text-sm font-semibold">SKU / Item Code</Label>
                     <div className="flex gap-2">
                       <Input 
+                        {...register("sku")}
                         id="sku" 
-                        required
-                        value={editingProduct.sku}
-                        onChange={(e) => setEditingProduct({...editingProduct, sku: e.target.value})}
                         placeholder="e.g. COF-001"
-                        className="font-mono text-sm border-slate-200"
+                        className={cn("font-mono text-sm border-slate-200", errors.sku && "border-red-500")}
                       />
                       <Button type="button" variant="outline" size="icon" onClick={generateSKU} className="shrink-0 border-slate-200">
-                        <RefreshCcw className="w-4 h-4 text-slate-500" />
+                        <RefreshCw className="w-4 h-4 text-slate-500" />
                       </Button>
                     </div>
+                    {errors.sku && <p className="text-[10px] text-red-500 font-medium">{errors.sku.message}</p>}
                   </div>
 
                   <div className="grid gap-2">
                     <Label htmlFor="category" className="text-sm font-semibold">Category</Label>
                     <Select 
-                      value={editingProduct.categoryId} 
-                      onValueChange={(val) => {
-                        setEditingProduct({...editingProduct, categoryId: val});
-                      }}
+                      value={watch("categoryId")} 
+                      onValueChange={(val) => setValue("categoryId", val, { shouldValidate: true })}
                     >
-                      <SelectTrigger className="border-slate-200">
+                      <SelectTrigger className={cn("border-slate-200", errors.categoryId && "border-red-500")}>
                         <SelectValue placeholder="Select Category" />
                       </SelectTrigger>
                       <SelectContent>
@@ -476,30 +563,31 @@ export default function InventoryPage() {
                         ))}
                       </SelectContent>
                     </Select>
+                    {errors.categoryId && <p className="text-[10px] text-red-500 font-medium">{errors.categoryId.message}</p>}
                   </div>
 
                   <div className="grid grid-cols-2 gap-4">
                     <div className="grid gap-2">
                       <Label htmlFor="cost" className="text-sm font-semibold">Cost (PHP)</Label>
                       <Input 
+                        {...register("cost")}
                         id="cost" 
                         type="number"
-                        required
-                        value={editingProduct.cost}
-                        onChange={(e) => setEditingProduct({...editingProduct, cost: Number(e.target.value)})}
-                        className="border-slate-200"
+                        step="0.01"
+                        className={cn("border-slate-200", errors.cost && "border-red-500")}
                       />
+                      {errors.cost && <p className="text-[10px] text-red-500 font-medium">{errors.cost.message}</p>}
                     </div>
                     <div className="grid gap-2">
                       <Label htmlFor="price" className="text-sm font-semibold">Price (PHP)</Label>
                       <Input 
+                        {...register("price")}
                         id="price" 
                         type="number"
-                        required
-                        value={editingProduct.price}
-                        onChange={(e) => setEditingProduct({...editingProduct, price: Number(e.target.value)})}
-                        className="border-slate-200"
+                        step="0.01"
+                        className={cn("border-slate-200", errors.price && "border-red-500")}
                       />
+                      {errors.price && <p className="text-[10px] text-red-500 font-medium">{errors.price.message}</p>}
                     </div>
                   </div>
 
@@ -507,13 +595,13 @@ export default function InventoryPage() {
                     <div>
                       <p className="text-[10px] uppercase font-bold text-blue-600 tracking-wider">Gross Margin</p>
                       <p className="text-lg font-bold text-blue-900">
-                        ₱{(editingProduct.price - editingProduct.cost).toLocaleString()}
+                        ₱{(watchPrice - watchCost || 0).toLocaleString()}
                       </p>
                     </div>
                     <div className="text-right">
                       <p className="text-[10px] uppercase font-bold text-blue-600 tracking-wider">Margin %</p>
                       <p className="text-lg font-bold text-blue-900">
-                        {editingProduct.price > 0 ? (((editingProduct.price - editingProduct.cost) / editingProduct.price) * 100).toFixed(1) : 0}%
+                        {watchPrice > 0 ? (((watchPrice - watchCost) / watchPrice) * 100).toFixed(1) : 0}%
                       </p>
                     </div>
                   </div>
@@ -522,23 +610,22 @@ export default function InventoryPage() {
                     <div className="grid gap-2">
                       <Label htmlFor="stock" className="text-sm font-semibold">Initial Stock</Label>
                       <Input 
+                        {...register("stock")}
                         id="stock" 
                         type="number"
-                        required
-                        value={editingProduct.stock}
-                        onChange={(e) => setEditingProduct({...editingProduct, stock: Number(e.target.value)})}
-                        className="border-slate-200"
+                        className={cn("border-slate-200", errors.stock && "border-red-500")}
                       />
+                      {errors.stock && <p className="text-[10px] text-red-500 font-medium">{errors.stock.message}</p>}
                     </div>
                     <div className="grid gap-2">
                       <Label htmlFor="minStock" className="text-sm font-semibold">Min. Threshold</Label>
                       <Input 
+                        {...register("minStock")}
                         id="minStock" 
                         type="number"
-                        value={editingProduct.minStock || 10}
-                        onChange={(e) => setEditingProduct({...editingProduct, minStock: Number(e.target.value)})}
-                        className="border-slate-200"
+                        className={cn("border-slate-200", errors.minStock && "border-red-500")}
                       />
+                      {errors.minStock && <p className="text-[10px] text-red-500 font-medium">{errors.minStock.message}</p>}
                     </div>
                   </div>
                 </div>
