@@ -20,9 +20,18 @@ export const productService = {
   },
 
   async upsertProduct(product: ProductInsert) {
+    // Get current user to ensure shop_id is set
+    const { data: { user } } = await supabase.auth.getUser();
+    if (!user) throw new Error("Unauthorized");
+
+    const productData = {
+      ...product,
+      shop_id: product.shop_id || user.id
+    };
+
     const { data, error } = await supabase
       .from("products")
-      .upsert(product)
+      .upsert(productData)
       .select()
       .single();
     if (error) throw error;
@@ -84,9 +93,17 @@ export const productService = {
   },
 
   async upsertCategory(category: CategoryInsert) {
+    const { data: { user } } = await supabase.auth.getUser();
+    if (!user) throw new Error("Unauthorized");
+
+    const categoryData = {
+      ...category,
+      shop_id: category.shop_id || user.id
+    };
+
     const { data, error } = await supabase
       .from("categories")
-      .upsert(category)
+      .upsert(categoryData)
       .select()
       .single();
     if (error) throw error;

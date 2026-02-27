@@ -86,6 +86,7 @@ export default function InventoryPage() {
 
   const handleSaveProduct = async (data: any) => {
     try {
+      setIsLoading(true);
       await productService.upsertProduct({
         id: editingProduct?.id || crypto.randomUUID(),
         ...data,
@@ -96,8 +97,14 @@ export default function InventoryPage() {
       setIsProductDialogOpen(false);
       setEditingProduct(null);
       productForm.reset();
-    } catch (error) {
-      toast({ variant: "destructive", title: "Save failed" });
+    } catch (error: any) {
+      toast({ 
+        variant: "destructive", 
+        title: "Save failed",
+        description: error.message 
+      });
+    } finally {
+      setIsLoading(false);
     }
   };
 
