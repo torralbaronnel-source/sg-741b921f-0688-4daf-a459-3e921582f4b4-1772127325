@@ -140,19 +140,26 @@ export default function InventoryPage() {
     formData.append("file", file);
 
     try {
-      const res = await fetch("/api/upload", {
+      const response = await fetch("/api/upload", {
         method: "POST",
         body: formData,
       });
-      const data = await res.json();
+
+      if (!response.ok) throw new Error("Upload failed");
+
+      const data = await response.json();
       
-      if (data.filePath) {
-        productForm.setValue("image", data.filePath);
-        toast({ title: "Success", description: "Image uploaded successfully" });
-      }
-    } catch (error) {
+      // Update form fields for both potential names to ensure compatibility
+      productForm.setValue("image", data.url);
+      
       toast({
-        title: "Upload failed",
+        title: "Success",
+        description: "Image uploaded successfully",
+      });
+    } catch (error) {
+      console.error("Upload error:", error);
+      toast({
+        title: "Upload Failed",
         description: "Could not upload image. Please try again.",
         variant: "destructive",
       });

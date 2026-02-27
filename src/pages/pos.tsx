@@ -133,9 +133,9 @@ export default function POSPage() {
   // Improved Product Image/Emoji Rendering
   const renderProductImage = (product: Product) => {
     const displayImage = product.image || product.imageUrl;
-    const category = categories.find((c) => c.id === product.categoryId);
-    const categoryColor = category?.color || "#CBD5E1";
-    const categoryEmoji = category?.emoji || "📦";
+    const category = categories.find(c => c.id === product.categoryId);
+    const categoryColor = category?.color || "#cbd5e1";
+    const categoryEmoji = "📦"; // Default placeholder
 
     if (displayImage) {
       return (
@@ -143,19 +143,12 @@ export default function POSPage() {
           <img
             src={displayImage}
             alt={product.name}
-            className="w-full h-full object-cover transition-transform duration-300 group-hover:scale-110"
+            className="w-full h-full object-cover"
             onError={(e) => {
-              // If image fails, hide it and show fallback
+              // Fallback if image fails to load
               (e.target as HTMLImageElement).style.display = 'none';
               const parent = (e.target as HTMLElement).parentElement;
-              if (parent) {
-                const fallback = document.createElement('div');
-                fallback.className = "w-full h-full flex items-center justify-center text-3xl transition-colors duration-300";
-                fallback.style.backgroundColor = `${categoryColor}20`;
-                fallback.style.color = categoryColor;
-                fallback.innerText = categoryEmoji;
-                parent.appendChild(fallback);
-              }
+              if (parent) parent.innerHTML = '<div class="w-full h-full flex items-center justify-center bg-slate-100 text-2xl">📦</div>';
             }}
           />
         </div>
