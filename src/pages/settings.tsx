@@ -12,6 +12,11 @@ import { toast } from "@/hooks/use-toast";
 export default function SettingsPage() {
   const [settings, setSettings] = useState<AppSettings>(INITIAL_SETTINGS);
   const [newCategoryName, setNewCategoryName] = useState("");
+  const [categories, setCategories] = useState<Category[]>([
+    { id: "cat-1", name: "COFFEE", emoji: "☕", color: "#7C2D12" },
+    { id: "cat-2", name: "PASTRY", emoji: "🥐", color: "#92400E" },
+    { id: "cat-3", name: "MERCH", emoji: "👕", color: "#2563EB" },
+  ]);
 
   useEffect(() => {
     const saved = localStorage.getItem("pos_settings");
@@ -31,7 +36,6 @@ export default function SettingsPage() {
     const cat: Category = {
       id: Date.now().toString(),
       name: newCategoryName,
-      slug: newCategoryName.toLowerCase().replace(/\s+/g, '-')
     };
     const updated = { ...settings, categories: [...(settings?.categories || []), cat] };
     setSettings(updated);

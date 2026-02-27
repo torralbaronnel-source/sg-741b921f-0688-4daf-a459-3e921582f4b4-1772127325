@@ -3,19 +3,23 @@ export type PaymentMethod = "CASH" | "QR_PH" | "MAYA_TERMINAL";
 export interface Category {
   id: string;
   name: string;
-  slug: string;
+  emoji: string;
+  color: string;
+  itemCount?: number;
 }
 
 export interface Product {
   id: string;
   name: string;
   price: number;
-  cost?: number;
+  cost: number;
   category: string;
+  categoryId?: string;
   stock: number;
   image?: string;
   emoji?: string;
   sku?: string;
+  color?: string;
   lowStockThreshold?: number;
   hotkey?: string; // e.g., "1", "2" for quick add
 }

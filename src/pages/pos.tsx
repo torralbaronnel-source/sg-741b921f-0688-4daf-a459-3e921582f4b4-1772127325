@@ -11,7 +11,13 @@ import {
   ChevronRight, 
   CheckCircle2, 
   X,
-  Zap
+  Zap,
+  ArrowLeft,
+  ChevronLeft,
+  CreditCard,
+  QrCode,
+  Banknote,
+  LayoutGrid
 } from "lucide-react";
 import { 
   Dialog, 
@@ -22,6 +28,7 @@ import {
 import { MOCK_PRODUCTS, INITIAL_SETTINGS } from "@/lib/mock-data";
 import { Product, CartItem, Sale, PaymentMethod, AppSettings } from "@/types/pos";
 import { cn } from "@/lib/utils";
+import Link from "next/link";
 
 export default function POSPage() {
   const [products, setProducts] = useState<Product[]>(MOCK_PRODUCTS);
@@ -123,16 +130,23 @@ export default function POSPage() {
   };
 
   return (
-    <div className="flex flex-col h-screen bg-slate-50 overflow-hidden">
-      <SEO title="Terminal | PocketPOS" />
+    <div className="flex flex-col h-screen bg-[#F8FAFC] text-[#0F172A] overflow-hidden font-sans">
+      <SEO title="POS Terminal | PocketPOS PH" />
       
-      {/* Header */}
-      <header className="h-14 border-b bg-white flex items-center justify-between px-4 shrink-0 z-30">
+      {/* HEADER */}
+      <header className="h-16 bg-white border-b border-[#E2E8F0] flex items-center justify-between px-4 shrink-0 z-30">
         <div className="flex items-center gap-3">
-          <div className="bg-blue-600 p-1.5 rounded-lg">
-            <Zap className="h-5 w-5 text-white" />
-          </div>
-          <span className="font-bold text-lg tracking-tight hidden sm:inline-block">PocketPOS</span>
+          <Link 
+            href="/" 
+            className="p-2 hover:bg-[#F1F5F9] rounded-full transition-colors group"
+            title="Back to Dashboard"
+          >
+            <ArrowLeft className="w-5 h-5 text-[#64748B] group-hover:text-[#2563EB]" />
+          </Link>
+          <div className="h-6 w-[1px] bg-[#E2E8F0] mx-1" />
+          <h1 className="text-lg font-bold tracking-tight text-[#1E293B] hidden sm:block">
+            Pocket<span className="text-[#2563EB]">POS</span>
+          </h1>
         </div>
         
         <div className="flex-1 max-w-md mx-4">
@@ -178,10 +192,10 @@ export default function POSPage() {
             {(settings?.categories || []).map(cat => (
               <Button 
                 key={cat.id}
-                variant={selectedCategory === cat.slug ? "default" : "outline"}
+                variant={selectedCategory === cat.id ? "default" : "outline"}
                 size="sm"
                 className="rounded-full shrink-0"
-                onClick={() => setSelectedCategory(cat.slug)}
+                onClick={() => setSelectedCategory(cat.id)}
               >
                 {cat.name}
               </Button>
@@ -190,7 +204,7 @@ export default function POSPage() {
 
           <div className="flex-1 overflow-y-auto p-4 custom-scrollbar">
             <div className="grid grid-cols-2 xs:grid-cols-3 sm:grid-cols-4 md:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5 2xl:grid-cols-6 gap-3">
-              {filteredProducts.map(product => (
+              {filteredProducts.filter(p => selectedCategory === "All" || p.categoryId === selectedCategory).map(product => (
                 <button
                   key={product.id}
                   onClick={() => addToCart(product)}
