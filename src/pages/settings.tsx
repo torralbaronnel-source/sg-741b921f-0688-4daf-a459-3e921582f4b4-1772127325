@@ -36,6 +36,8 @@ export default function SettingsPage() {
     const cat: Category = {
       id: Date.now().toString(),
       name: newCategoryName,
+      emoji: "📁",
+      color: "#2563EB"
     };
     const updated = { ...settings, categories: [...(settings?.categories || []), cat] };
     setSettings(updated);
