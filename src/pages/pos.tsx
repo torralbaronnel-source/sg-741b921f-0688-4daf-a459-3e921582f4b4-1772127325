@@ -156,10 +156,10 @@ export default function POSPage() {
               <Button 
                 variant="outline" 
                 size="icon" 
-                className="lg:flex hidden h-11 w-11"
+                className="h-11 w-11 flex shrink-0"
                 onClick={() => setShowCart(!showCart)}
               >
-                {showCart ? <ChevronRight className="w-5 h-5" /> : <ChevronLeft className="w-5 h-5" />}
+                {showCart ? <ChevronRight className="w-5 h-5" /> : <ShoppingCart className="w-5 h-5 text-blue-600" />}
               </Button>
             </div>
 
