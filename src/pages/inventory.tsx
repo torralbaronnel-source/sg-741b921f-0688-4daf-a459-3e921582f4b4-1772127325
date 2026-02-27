@@ -1,33 +1,22 @@
 import React, { useState, useMemo } from "react";
 import Link from "next/link";
 import { 
-  Plus, 
-  Search, 
-  Package, 
-  History, 
-  ArrowLeft, 
-  Filter,
-  MoreVertical,
-  Edit,
-  Trash2,
-  Tags,
-  RefreshCw,
-  X,
-  ChevronRight,
-  AlertTriangle,
-  Palette,
-  TrendingUp,
-  DollarSign
+  Plus, Search, Filter, ArrowLeft, Package, 
+  TrendingUp, AlertTriangle, MoreVertical, Edit, 
+  Trash2, Image as ImageIcon, Check, RefreshCw,
+  Layers, ChevronRight, Download
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Badge } from "@/components/ui/badge";
+import { Progress } from "@/components/ui/progress";
 import { 
   Sheet, 
   SheetContent, 
   SheetHeader, 
   SheetTitle, 
-  SheetDescription
+  SheetDescription,
+  SheetFooter
 } from "@/components/ui/sheet";
 import {
   DropdownMenu,
@@ -35,460 +24,518 @@ import {
   DropdownMenuItem,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
-import { 
-  MOCK_PRODUCTS, 
-  MOCK_CATEGORIES 
-} from "@/lib/mock-data";
+import { MOCK_PRODUCTS, MOCK_CATEGORIES } from "@/lib/mock-data";
 import { Product, Category } from "@/types/pos";
-import { cn } from "@/lib/utils";
 
 export default function InventoryPage() {
-  const [activeTab, setActiveTab] = useState<"list" | "categories" | "logs">("list");
-  const [products, setProducts] = useState<Product[]>(MOCK_PRODUCTS);
-  const [categories, setCategories] = useState<Category[]>(MOCK_CATEGORIES);
+  const [activeTab, setActiveTab] = useState<"products" | "categories" | "logs">("products");
   const [searchQuery, setSearchQuery] = useState("");
-  
-  // Product Sheet State
-  const [isProductSheetOpen, setIsProductSheetOpen] = useState(false);
+  const [isProductDrawerOpen, setIsProductDrawerOpen] = useState(false);
+  const [isCategoryDrawerOpen, setIsCategoryDrawerOpen] = useState(false);
   const [editingProduct, setEditingProduct] = useState<Product | null>(null);
-  
-  // Category Sheet State
-  const [isCategorySheetOpen, setIsCategorySheetOpen] = useState(false);
   const [editingCategory, setEditingCategory] = useState<Category | null>(null);
 
-  // Stats
+  // Form States
+  const [formData, setFormData] = useState<Partial<Product>>({
+    name: "",
+    sku: "",
+    price: 0,
+    cost: 0,
+    stock: 0,
+    categoryId: "cat-1",
+    image: "",
+    minStock: 10
+  });
+
+  const [categoryFormData, setCategoryFormData] = useState<Partial<Category>>({
+    name: "",
+    color: "#2563EB",
+    image: ""
+  });
+
+  const filteredProducts = useMemo(() => {
+    return MOCK_PRODUCTS.filter(p => 
+      p.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
+      p.sku.toLowerCase().includes(searchQuery.toLowerCase())
+    );
+  }, [searchQuery]);
+
   const stats = useMemo(() => {
-    const totalItems = products.length;
-    const inventoryValue = products.reduce((acc, p) => acc + (p.stock * p.cost), 0);
-    const lowStockItems = products.filter(p => p.stock < 10).length;
-    return { totalItems, inventoryValue, lowStockItems };
-  }, [products]);
+    const totalItems = MOCK_PRODUCTS.length;
+    const inventoryValue = MOCK_PRODUCTS.reduce((acc, p) => acc + (p.stock * p.cost), 0);
+    const lowStockCount = MOCK_PRODUCTS.filter(p => p.stock <= (p.minStock || 10)).length;
+    const potentialRevenue = MOCK_PRODUCTS.reduce((acc, p) => acc + (p.stock * p.price), 0);
+    
+    return { totalItems, inventoryValue, lowStockCount, potentialRevenue };
+  }, []);
 
-  const filteredProducts = products.filter(p => 
-    p.name.toLowerCase().includes(searchQuery.toLowerCase()) || 
-    p.sku?.toLowerCase().includes(searchQuery.toLowerCase())
-  );
-
-  const generateSKU = () => {
-    return "SKU-" + Math.random().toString(36).substr(2, 6).toUpperCase();
+  const handleEditProduct = (product: Product) => {
+    setEditingProduct(product);
+    setFormData(product);
+    setIsProductDrawerOpen(true);
   };
 
-  const handleSaveProduct = (e: React.FormEvent<HTMLFormElement>) => {
-    e.preventDefault();
-    const formData = new FormData(e.currentTarget);
-    const catId = formData.get("categoryId") as string;
-    const catName = categories.find(c => c.id === catId)?.name || "Uncategorized";
-
-    const productData: Partial<Product> = {
-      name: formData.get("name") as string,
-      sku: formData.get("sku") as string,
-      price: Number(formData.get("price")),
-      cost: Number(formData.get("cost")),
-      categoryId: catId,
-      category: catName,
-      stock: Number(formData.get("stock")),
-      emoji: formData.get("emoji") as string,
-    };
-
-    if (editingProduct) {
-      setProducts(prev => prev.map(p => p.id === editingProduct.id ? { ...p, ...productData } as Product : p));
-    } else {
-      const newProduct: Product = {
-        id: Math.random().toString(36).substr(2, 9),
-        ...productData as Product,
-      };
-      setProducts(prev => [newProduct, ...prev]);
-    }
-    setIsProductSheetOpen(false);
+  const handleAddProduct = () => {
+    setEditingProduct(null);
+    setFormData({
+      name: "",
+      sku: `PROD-${Math.floor(1000 + Math.random() * 9000)}`,
+      price: 0,
+      cost: 0,
+      stock: 0,
+      categoryId: MOCK_CATEGORIES[0]?.id || "",
+      image: "",
+      minStock: 10
+    });
+    setIsProductDrawerOpen(true);
   };
 
-  const handleSaveCategory = (e: React.FormEvent<HTMLFormElement>) => {
-    e.preventDefault();
-    const formData = new FormData(e.currentTarget);
-    const categoryData: Partial<Category> = {
-      name: formData.get("name") as string,
-      emoji: formData.get("emoji") as string,
-      color: formData.get("color") as string,
-    };
-
-    if (editingCategory) {
-      setCategories(prev => prev.map(c => c.id === editingCategory.id ? { ...c, ...categoryData } as Category : c));
-      // Update existing products with new category name if it changed
-      setProducts(prev => prev.map(p => p.categoryId === editingCategory.id ? { ...p, category: categoryData.name! } : p));
-    } else {
-      const newCategory: Category = {
-        id: `cat-${Math.random().toString(36).substr(2, 5)}`,
-        ...categoryData as Category,
-        itemCount: 0
-      };
-      setCategories(prev => [newCategory, ...prev]);
-    }
-    setIsCategorySheetOpen(false);
+  const handleEditCategory = (cat: Category) => {
+    setEditingCategory(cat);
+    setCategoryFormData(cat);
+    setIsCategoryDrawerOpen(true);
   };
 
   return (
-    <div className="min-h-screen bg-[#F8FAFC] flex flex-col font-sans">
-      {/* Header */}
-      <header className="sticky top-0 z-30 bg-white border-b border-slate-200 px-4 h-16 flex items-center justify-between">
-        <div className="flex items-center gap-3">
-          <Link href="/">
-            <Button variant="ghost" size="icon" className="rounded-full">
-              <ArrowLeft className="w-5 h-5 text-slate-600" />
-            </Button>
-          </Link>
-          <h1 className="text-xl font-bold text-slate-900">Inventory</h1>
-        </div>
+    <div className="min-h-screen bg-[#F8FAFC]">
+      {/* Header Section */}
+      <header className="sticky top-0 z-30 bg-white/80 backdrop-blur-md border-b border-slate-200 px-4 py-4">
+        <div className="max-w-7xl mx-auto flex flex-col md:flex-row md:items-center justify-between gap-4">
+          <div className="flex items-center gap-4">
+            <Link href="/">
+              <Button variant="ghost" size="icon" className="rounded-full">
+                <ArrowLeft className="w-5 h-5 text-slate-600" />
+              </Button>
+            </Link>
+            <div>
+              <h1 className="text-xl font-bold text-slate-900">Inventory Terminal</h1>
+              <p className="text-xs text-slate-500 font-medium uppercase tracking-wider">Asset Management</p>
+            </div>
+          </div>
 
-        <div className="flex items-center gap-1 bg-slate-100 p-1 rounded-xl">
-          <button 
-            onClick={() => setActiveTab("list")}
-            className={cn(
-              "flex items-center gap-2 px-4 py-1.5 rounded-lg text-sm font-medium transition-all",
-              activeTab === "list" ? "bg-white text-[#2563EB] shadow-sm" : "text-slate-600"
-            )}
-          >
-            <Package className="w-4 h-4" />
-            <span className="hidden sm:inline">Products</span>
-          </button>
-          <button 
-            onClick={() => setActiveTab("categories")}
-            className={cn(
-              "flex items-center gap-2 px-4 py-1.5 rounded-lg text-sm font-medium transition-all",
-              activeTab === "categories" ? "bg-white text-[#2563EB] shadow-sm" : "text-slate-600"
-            )}
-          >
-            <Tags className="w-4 h-4" />
-            <span className="hidden sm:inline">Categories</span>
-          </button>
+          <div className="flex items-center gap-2 overflow-x-auto pb-1 md:pb-0 scrollbar-hide">
+            <Button 
+              variant={activeTab === "products" ? "default" : "outline"} 
+              size="sm" 
+              className="rounded-full gap-2 shrink-0"
+              onClick={() => setActiveTab("products")}
+            >
+              <Package className="w-4 h-4" /> Products
+            </Button>
+            <Button 
+              variant={activeTab === "categories" ? "default" : "outline"} 
+              size="sm" 
+              className="rounded-full gap-2 shrink-0"
+              onClick={() => setActiveTab("categories")}
+            >
+              <Layers className="w-4 h-4" /> Categories
+            </Button>
+            <Button 
+              variant={activeTab === "logs" ? "default" : "outline"} 
+              size="sm" 
+              className="rounded-full gap-2 shrink-0"
+              onClick={() => setActiveTab("logs")}
+            >
+              <RefreshCw className="w-4 h-4" /> Movement Logs
+            </Button>
+          </div>
         </div>
       </header>
 
-      <main className="flex-1 p-4 max-w-7xl mx-auto w-full space-y-6">
-        {/* Simple Stats Row */}
-        <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-          <div className="bg-white p-5 rounded-2xl border border-slate-200 shadow-sm flex items-center gap-4">
-            <div className="w-12 h-12 rounded-xl bg-blue-50 flex items-center justify-center text-blue-600">
-              <Package className="w-6 h-6" />
-            </div>
-            <div>
-              <p className="text-xs font-bold text-slate-400 uppercase">Total Items</p>
-              <p className="text-2xl font-black text-slate-900">{stats.totalItems}</p>
-            </div>
+      <main className="max-w-7xl mx-auto px-4 py-6 space-y-6">
+        {/* Quick Insights */}
+        <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
+          <div className="bg-white p-4 rounded-2xl border border-slate-200 shadow-sm">
+            <p className="text-[10px] font-bold text-slate-400 uppercase tracking-widest mb-1">Total Assets</p>
+            <p className="text-2xl font-black text-slate-900">₱{stats.inventoryValue.toLocaleString()}</p>
+            <p className="text-[10px] text-slate-500 mt-1 font-medium italic">At Purchase Cost</p>
           </div>
-          <div className="bg-white p-5 rounded-2xl border border-slate-200 shadow-sm flex items-center gap-4">
-            <div className="w-12 h-12 rounded-xl bg-emerald-50 flex items-center justify-center text-emerald-600">
-              <TrendingUp className="w-6 h-6" />
+          <div className="bg-white p-4 rounded-2xl border border-slate-200 shadow-sm">
+            <p className="text-[10px] font-bold text-slate-400 uppercase tracking-widest mb-1">Low Stock</p>
+            <div className="flex items-center gap-2">
+              <p className={`text-2xl font-black ${stats.lowStockCount > 0 ? "text-rose-600" : "text-slate-900"}`}>
+                {stats.lowStockCount}
+              </p>
+              {stats.lowStockCount > 0 && <AlertTriangle className="w-5 h-5 text-rose-500 animate-pulse" />}
             </div>
-            <div>
-              <p className="text-xs font-bold text-slate-400 uppercase">Inventory Value</p>
-              <p className="text-2xl font-black text-slate-900">₱{stats.inventoryValue.toLocaleString()}</p>
-            </div>
+            <p className="text-[10px] text-slate-500 mt-1 font-medium uppercase italic">Needs Attention</p>
           </div>
-          <div className={cn(
-            "p-5 rounded-2xl border shadow-sm flex items-center gap-4 transition-colors",
-            stats.lowStockItems > 0 ? "bg-red-50 border-red-100" : "bg-white border-slate-200"
-          )}>
-            <div className={cn(
-              "w-12 h-12 rounded-xl flex items-center justify-center",
-              stats.lowStockItems > 0 ? "bg-red-100 text-red-600" : "bg-slate-50 text-slate-400"
-            )}>
-              <AlertTriangle className="w-6 h-6" />
-            </div>
-            <div>
-              <p className={cn("text-xs font-bold uppercase", stats.lowStockItems > 0 ? "text-red-400" : "text-slate-400")}>Low Stock</p>
-              <p className={cn("text-2xl font-black", stats.lowStockItems > 0 ? "text-red-700" : "text-slate-900")}>{stats.lowStockItems}</p>
-            </div>
+          <div className="bg-white p-4 rounded-2xl border border-slate-200 shadow-sm hidden lg:block">
+            <p className="text-[10px] font-bold text-slate-400 uppercase tracking-widest mb-1">Total Items</p>
+            <p className="text-2xl font-black text-slate-900">{stats.totalItems}</p>
+            <p className="text-[10px] text-slate-500 mt-1 font-medium uppercase italic">SKU Count</p>
+          </div>
+          <div className="bg-white p-4 rounded-2xl border border-slate-200 shadow-sm hidden lg:block">
+            <p className="text-[10px] font-bold text-slate-400 uppercase tracking-widest mb-1">Potential Sales</p>
+            <p className="text-2xl font-black text-emerald-600">₱{stats.potentialRevenue.toLocaleString()}</p>
+            <p className="text-[10px] text-slate-500 mt-1 font-medium uppercase italic">Est. Gross Value</p>
           </div>
         </div>
 
-        {activeTab === "list" && (
-          <div className="space-y-4">
-            <div className="flex flex-col sm:flex-row gap-4 items-center justify-between">
-              <div className="relative w-full sm:max-w-md">
-                <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400" />
-                <Input 
-                  placeholder="Search name or SKU..." 
-                  className="pl-10 h-11 bg-white border-slate-200 rounded-xl"
-                  value={searchQuery}
-                  onChange={(e) => setSearchQuery(e.target.value)}
-                />
-              </div>
-              <Button 
-                onClick={() => { setEditingProduct(null); setIsProductSheetOpen(true); }}
-                className="w-full sm:w-auto h-11 bg-[#0F172A] hover:bg-slate-800 text-white rounded-xl gap-2 font-bold"
-              >
-                <Plus className="w-5 h-5" />
-                Add Product
-              </Button>
-            </div>
+        {/* Action Bar */}
+        <div className="flex flex-col md:flex-row gap-4 items-center justify-between">
+          <div className="relative w-full md:w-96">
+            <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400" />
+            <Input 
+              placeholder="Search SKU or Name..." 
+              className="pl-10 h-11 bg-white border-slate-200 rounded-xl focus:ring-2 focus:ring-blue-500"
+              value={searchQuery}
+              onChange={(e) => setSearchQuery(e.target.value)}
+            />
+          </div>
+          <div className="flex items-center gap-2 w-full md:w-auto">
+            <Button variant="outline" className="flex-1 md:flex-none h-11 rounded-xl gap-2 border-slate-200 bg-white">
+              <Download className="w-4 h-4" /> Export
+            </Button>
+            <Button 
+              className="flex-1 md:flex-none h-11 rounded-xl gap-2 bg-slate-900 hover:bg-slate-800"
+              onClick={activeTab === "products" ? handleAddProduct : () => setIsCategoryDrawerOpen(true)}
+            >
+              <Plus className="w-5 h-5" /> 
+              {activeTab === "products" ? "Add Product" : "New Category"}
+            </Button>
+          </div>
+        </div>
 
-            <div className="bg-white rounded-2xl border border-slate-200 shadow-sm overflow-hidden overflow-x-auto">
-              <table className="w-full text-left min-w-[900px]">
-                <thead className="bg-slate-50/50 border-b border-slate-200">
-                  <tr>
-                    <th className="px-6 py-4 text-[10px] font-black text-slate-400 uppercase tracking-widest">SKU / Name</th>
-                    <th className="px-6 py-4 text-[10px] font-black text-slate-400 uppercase tracking-widest">Category</th>
-                    <th className="px-6 py-4 text-[10px] font-black text-slate-400 uppercase tracking-widest text-right">Cost</th>
-                    <th className="px-6 py-4 text-[10px] font-black text-slate-400 uppercase tracking-widest text-right">Price</th>
-                    <th className="px-6 py-4 text-[10px] font-black text-slate-400 uppercase tracking-widest text-center">Stock</th>
-                    <th className="px-6 py-4 text-[10px] font-black text-slate-400 uppercase tracking-widest text-right">Value</th>
-                    <th className="px-6 py-4"></th>
+        {/* Product Table */}
+        {activeTab === "products" && (
+          <div className="bg-white rounded-3xl border border-slate-200 shadow-sm overflow-hidden">
+            <div className="overflow-x-auto">
+              <table className="w-full text-left border-collapse">
+                <thead>
+                  <tr className="bg-slate-50 border-b border-slate-200">
+                    <th className="px-6 py-4 text-[10px] font-bold text-slate-500 uppercase tracking-widest">Product Info</th>
+                    <th className="px-6 py-4 text-[10px] font-bold text-slate-500 uppercase tracking-widest">Category</th>
+                    <th className="px-6 py-4 text-[10px] font-bold text-slate-500 uppercase tracking-widest">Finances</th>
+                    <th className="px-6 py-4 text-[10px] font-bold text-slate-500 uppercase tracking-widest w-48">Stock Level</th>
+                    <th className="px-6 py-4 text-[10px] font-bold text-slate-500 uppercase tracking-widest text-right">Actions</th>
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-slate-100">
-                  {filteredProducts.map((product) => (
-                    <tr key={product.id} className="hover:bg-slate-50/50 transition-colors">
-                      <td className="px-6 py-4">
-                        <div className="flex items-center gap-3">
-                          <div className="w-10 h-10 rounded-lg bg-slate-100 flex items-center justify-center text-xl shadow-inner border border-slate-200">
-                            {product.emoji || "📦"}
-                          </div>
-                          <div>
-                            <div className="text-[10px] font-mono text-blue-600 font-bold uppercase tracking-tight">{product.sku || "NO-SKU"}</div>
-                            <div className="font-bold text-slate-900 leading-none">{product.name}</div>
-                          </div>
-                        </div>
-                      </td>
-                      <td className="px-6 py-4">
-                        <Badge variant="outline" className="font-bold bg-slate-50 border-slate-200 text-slate-500 rounded-lg px-2 py-0.5">
-                          {product.category}
-                        </Badge>
-                      </td>
-                      <td className="px-6 py-4 text-right font-medium text-slate-500">₱{product.cost.toLocaleString()}</td>
-                      <td className="px-6 py-4 text-right font-black text-slate-900">₱{product.price.toLocaleString()}</td>
-                      <td className="px-6 py-4">
-                        <div className="flex flex-col items-center gap-1.5">
-                          <span className={cn(
-                            "text-xs font-black",
-                            product.stock < 10 ? "text-red-600" : "text-slate-900"
-                          )}>{product.stock}</span>
-                          <div className="w-20 h-1.5 bg-slate-100 rounded-full overflow-hidden border border-slate-200/50">
-                            <div 
-                              className={cn(
-                                "h-full transition-all duration-500",
-                                product.stock < 10 ? "bg-red-500" : "bg-emerald-500"
+                  {filteredProducts.map((product) => {
+                    const isLow = product.stock <= (product.minStock || 10);
+                    const margin = ((product.price - product.cost) / product.price * 100).toFixed(0);
+                    const category = MOCK_CATEGORIES.find(c => c.id === product.categoryId);
+
+                    return (
+                      <tr key={product.id} className="hover:bg-slate-50/50 transition-colors group">
+                        <td className="px-6 py-5">
+                          <div className="flex items-center gap-4">
+                            <div className="w-12 h-12 rounded-xl bg-slate-100 overflow-hidden border border-slate-200 flex-shrink-0 flex items-center justify-center relative">
+                              {product.image ? (
+                                <img src={product.image} alt="" className="w-full h-full object-cover" />
+                              ) : (
+                                <ImageIcon className="w-6 h-6 text-slate-300" />
                               )}
-                              style={{ width: `${Math.min(100, (product.stock / 100) * 100)}%` }}
+                              {isLow && (
+                                <div className="absolute top-0 right-0 w-3 h-3 bg-rose-500 border-2 border-white rounded-full translate-x-1 -translate-y-1 shadow-sm" />
+                              )}
+                            </div>
+                            <div>
+                              <p className="font-bold text-slate-900 leading-none mb-1.5">{product.name}</p>
+                              <code className="text-[10px] font-mono bg-slate-100 px-1.5 py-0.5 rounded text-slate-500 uppercase tracking-tight">
+                                {product.sku}
+                              </code>
+                            </div>
+                          </div>
+                        </td>
+                        <td className="px-6 py-5">
+                          <Badge 
+                            variant="outline" 
+                            className="rounded-full font-medium" 
+                            style={{ borderColor: category?.color + '40', color: category?.color }}
+                          >
+                            {category?.name || "Uncategorized"}
+                          </Badge>
+                        </td>
+                        <td className="px-6 py-5">
+                          <div>
+                            <div className="flex items-center gap-2">
+                              <span className="text-sm font-bold text-slate-900">₱{product.price}</span>
+                              <span className="text-[10px] font-bold text-emerald-600 bg-emerald-50 px-1.5 rounded">+{margin}%</span>
+                            </div>
+                            <p className="text-[10px] text-slate-400 mt-1 uppercase font-bold tracking-tighter">Cost: ₱{product.cost}</p>
+                          </div>
+                        </td>
+                        <td className="px-6 py-5">
+                          <div className="space-y-2">
+                            <div className="flex justify-between items-end">
+                              <span className={`text-xs font-black ${isLow ? "text-rose-600" : "text-slate-900"}`}>
+                                {product.stock} units
+                              </span>
+                              <span className="text-[10px] text-slate-400 font-bold uppercase tracking-tighter">
+                                Value: ₱{(product.stock * product.cost).toLocaleString()}
+                              </span>
+                            </div>
+                            <Progress 
+                              value={Math.min((product.stock / 100) * 100, 100)} 
+                              className={`h-1.5 rounded-full ${isLow ? "[&>div]:bg-rose-500" : "[&>div]:bg-emerald-500"}`}
                             />
                           </div>
-                        </div>
-                      </td>
-                      <td className="px-6 py-4 text-right font-black text-blue-600">
-                        ₱{(product.stock * product.cost).toLocaleString()}
-                      </td>
-                      <td className="px-6 py-4 text-right">
-                        <DropdownMenu>
-                          <DropdownMenuTrigger asChild>
-                            <Button variant="ghost" size="icon" className="rounded-lg">
-                              <MoreVertical className="w-4 h-4 text-slate-400" />
+                        </td>
+                        <td className="px-6 py-5 text-right">
+                          <div className="flex justify-end gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
+                            <Button 
+                              variant="ghost" 
+                              size="icon" 
+                              className="w-8 h-8 rounded-full text-slate-400 hover:text-blue-600 hover:bg-blue-50"
+                              onClick={() => handleEditProduct(product)}
+                            >
+                              <Edit className="w-4 h-4" />
                             </Button>
-                          </DropdownMenuTrigger>
-                          <DropdownMenuContent align="end" className="w-40 rounded-xl">
-                            <DropdownMenuItem onClick={() => { setEditingProduct(product); setIsProductSheetOpen(true); }} className="gap-2 font-bold">
-                              <Edit className="w-4 h-4" /> Edit
-                            </DropdownMenuItem>
-                            <DropdownMenuItem onClick={() => setProducts(prev => prev.filter(p => p.id !== product.id))} className="gap-2 text-red-600 font-bold">
-                              <Trash2 className="w-4 h-4" /> Delete
-                            </DropdownMenuItem>
-                          </DropdownMenuContent>
-                        </DropdownMenu>
-                      </td>
-                    </tr>
-                  ))}
+                            <Button 
+                              variant="ghost" 
+                              size="icon" 
+                              className="w-8 h-8 rounded-full text-slate-400 hover:text-rose-600 hover:bg-rose-50"
+                            >
+                              <Trash2 className="w-4 h-4" />
+                            </Button>
+                          </div>
+                          <div className="group-hover:hidden">
+                            <Button variant="ghost" size="icon" className="w-8 h-8 rounded-full text-slate-300">
+                              <MoreVertical className="w-4 h-4" />
+                            </Button>
+                          </div>
+                        </td>
+                      </tr>
+                    );
+                  })}
                 </tbody>
               </table>
             </div>
           </div>
         )}
 
+        {/* Category Grid */}
         {activeTab === "categories" && (
-          <div className="space-y-4">
-            <div className="flex items-center justify-between">
-              <h2 className="text-sm font-black text-slate-900 uppercase tracking-widest">Category Studio</h2>
-              <Button 
-                onClick={() => { setEditingCategory(null); setIsCategorySheetOpen(true); }}
-                className="h-10 bg-[#2563EB] hover:bg-blue-700 text-white rounded-xl gap-2 font-bold shadow-lg shadow-blue-500/20"
-              >
-                <Plus className="w-4 h-4" />
-                New Category
-              </Button>
-            </div>
-
-            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4">
-              {categories.map((cat) => (
-                <div key={cat.id} className="bg-white p-5 rounded-2xl border border-slate-200 shadow-sm hover:shadow-md transition-all group relative overflow-hidden">
-                  <div 
-                    className="absolute top-0 right-0 w-20 h-20 -mr-6 -mt-6 opacity-5 rounded-full"
-                    style={{ backgroundColor: cat.color }}
-                  />
-                  <div className="flex items-center justify-between relative">
-                    <div className="flex items-center gap-4">
-                      <div 
-                        className="w-14 h-14 rounded-2xl flex items-center justify-center text-3xl shadow-sm border"
-                        style={{ backgroundColor: `${cat.color}15`, color: cat.color, borderColor: `${cat.color}30` }}
-                      >
-                        {cat.emoji}
-                      </div>
-                      <div>
-                        <h3 className="font-black text-slate-900 text-base uppercase tracking-tight">{cat.name}</h3>
-                        <p className="text-[10px] text-slate-400 font-bold uppercase">{products.filter(p => p.categoryId === cat.id).length} Products</p>
-                      </div>
-                    </div>
-                    <div className="flex items-center gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
-                      <Button variant="ghost" size="icon" onClick={() => { setEditingCategory(cat); setIsCategorySheetOpen(true); }} className="h-8 w-8 rounded-lg">
-                        <Edit className="w-4 h-4 text-slate-400" />
-                      </Button>
-                      <Button variant="ghost" size="icon" onClick={() => setCategories(prev => prev.filter(c => c.id !== cat.id))} className="h-8 w-8 rounded-lg hover:text-red-600">
-                        <Trash2 className="w-4 h-4" />
-                      </Button>
-                    </div>
+          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+            {MOCK_CATEGORIES.map(category => (
+              <div key={category.id} className="bg-white p-6 rounded-3xl border border-slate-200 shadow-sm relative group overflow-hidden">
+                <div 
+                  className="absolute top-0 left-0 w-2 h-full" 
+                  style={{ backgroundColor: category.color }} 
+                />
+                <div className="flex justify-between items-start mb-4">
+                  <div className="w-16 h-16 rounded-2xl bg-slate-50 border border-slate-100 flex items-center justify-center overflow-hidden">
+                    {category.image ? (
+                      <img src={category.image} alt="" className="w-full h-full object-cover" />
+                    ) : (
+                      <div className="w-10 h-10 rounded-full" style={{ backgroundColor: category.color + '20' }} />
+                    )}
                   </div>
+                  <DropdownMenu>
+                    <DropdownMenuTrigger asChild>
+                      <Button variant="ghost" size="icon" className="rounded-full">
+                        <MoreVertical className="w-4 h-4" />
+                      </Button>
+                    </DropdownMenuTrigger>
+                    <DropdownMenuContent align="end" className="rounded-xl">
+                      <DropdownMenuItem onClick={() => handleEditCategory(category)}>
+                        <Edit className="w-4 h-4 mr-2" /> Edit Category
+                      </DropdownMenuItem>
+                      <DropdownMenuItem className="text-rose-600">
+                        <Trash2 className="w-4 h-4 mr-2" /> Delete
+                      </DropdownMenuItem>
+                    </DropdownMenuContent>
+                  </DropdownMenu>
                 </div>
-              ))}
+                <h3 className="text-lg font-bold text-slate-900 mb-1">{category.name}</h3>
+                <p className="text-xs text-slate-500 font-medium">
+                  {MOCK_PRODUCTS.filter(p => p.categoryId === category.id).length} Products
+                </p>
+                <div className="mt-4 pt-4 border-t border-slate-100 flex items-center justify-between">
+                  <div className="flex items-center gap-2">
+                    <div className="w-3 h-3 rounded-full" style={{ backgroundColor: category.color }} />
+                    <span className="text-[10px] font-bold text-slate-400 uppercase">{category.color}</span>
+                  </div>
+                  <Button variant="ghost" size="sm" className="text-blue-600 font-bold hover:bg-blue-50 rounded-lg h-8">
+                    View Products <ChevronRight className="w-4 h-4 ml-1" />
+                  </Button>
+                </div>
+              </div>
+            ))}
+          </div>
+        )}
+
+        {/* Product Movement Logs - High Speed Placeholder */}
+        {activeTab === "logs" && (
+          <div className="bg-white rounded-3xl border border-slate-200 shadow-sm p-8 text-center max-w-lg mx-auto">
+            <div className="w-16 h-16 bg-blue-50 rounded-full flex items-center justify-center mx-auto mb-4">
+              <RefreshCw className="w-8 h-8 text-blue-600" />
             </div>
+            <h3 className="text-lg font-bold text-slate-900 mb-2">Audit Logs Incoming</h3>
+            <p className="text-sm text-slate-500 mb-6 leading-relaxed">
+              We're preparing a real-time ledger for stock-in, waste, and automated sales adjustments.
+            </p>
+            <Button className="rounded-full bg-slate-900">Enable Advanced Tracking</Button>
           </div>
         )}
       </main>
 
       {/* Product Drawer */}
-      <Sheet open={isProductSheetOpen} onOpenChange={setIsProductSheetOpen}>
-        <SheetContent className="w-full sm:max-w-md bg-white border-l border-slate-200 p-0 overflow-y-auto">
-          <form onSubmit={handleSaveProduct} className="flex flex-col h-full">
-            <div className="p-6 border-b border-slate-100 bg-slate-50/50">
-              <SheetHeader>
-                <SheetTitle className="text-xl font-black text-slate-900 uppercase tracking-widest">
-                  {editingProduct ? "Edit Product" : "New Product"}
-                </SheetTitle>
-                <SheetDescription className="font-bold text-slate-500">Configure your listing details below</SheetDescription>
-              </SheetHeader>
+      <Sheet open={isProductDrawerOpen} onOpenChange={setIsProductDrawerOpen}>
+        <SheetContent className="w-full sm:max-w-md overflow-y-auto">
+          <SheetHeader className="mb-6">
+            <SheetTitle className="text-xl font-black">{editingProduct ? "Edit Product" : "New Product"}</SheetTitle>
+            <SheetDescription>Set pricing, SKU, and stock levels.</SheetDescription>
+          </SheetHeader>
+
+          <div className="space-y-6">
+            <div className="space-y-2">
+              <label className="text-[10px] font-bold text-slate-400 uppercase tracking-widest">Visual Asset (URL)</label>
+              <div className="relative">
+                <Input 
+                  placeholder="https://images.unsplash.com/..." 
+                  className="bg-slate-50 border-slate-200 rounded-xl pr-10"
+                  value={formData.image}
+                  onChange={(e) => setFormData({...formData, image: e.target.value})}
+                />
+                <ImageIcon className="absolute right-3 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-300" />
+              </div>
+              <div className="mt-2 w-full h-32 rounded-2xl bg-slate-50 border border-dashed border-slate-200 flex items-center justify-center overflow-hidden">
+                {formData.image ? (
+                  <img src={formData.image} alt="" className="w-full h-full object-cover" />
+                ) : (
+                  <p className="text-xs text-slate-400">Preview image here</p>
+                )}
+              </div>
             </div>
 
-            <div className="flex-1 p-6 space-y-6">
-              <div className="grid grid-cols-4 gap-4 items-end">
-                <div className="col-span-1">
-                  <label className="text-[10px] font-black text-slate-400 uppercase mb-1.5 block">Icon</label>
-                  <Input name="emoji" defaultValue={editingProduct?.emoji || "📦"} className="text-center text-2xl h-12 bg-slate-50 border-slate-200 rounded-xl" />
-                </div>
-                <div className="col-span-3">
-                  <label className="text-[10px] font-black text-slate-400 uppercase mb-1.5 block">Product Name</label>
-                  <Input name="name" required defaultValue={editingProduct?.name} placeholder="e.g. Arabica Roast" className="h-12 bg-slate-50 border-slate-200 rounded-xl font-bold" />
+            <div className="grid grid-cols-2 gap-4">
+              <div className="space-y-2 col-span-2">
+                <label className="text-[10px] font-bold text-slate-400 uppercase tracking-widest">Product Name</label>
+                <Input 
+                  placeholder="e.g. Arabica Roast" 
+                  className="bg-slate-50 border-slate-200 rounded-xl"
+                  value={formData.name}
+                  onChange={(e) => setFormData({...formData, name: e.target.value})}
+                />
+              </div>
+              <div className="space-y-2">
+                <label className="text-[10px] font-bold text-slate-400 uppercase tracking-widest">SKU Code</label>
+                <div className="relative">
+                  <Input 
+                    placeholder="PROD-000" 
+                    className="bg-slate-100 border-slate-200 rounded-xl font-mono"
+                    value={formData.sku}
+                    readOnly
+                  />
+                  <RefreshCw className="absolute right-3 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-slate-300 cursor-pointer" />
                 </div>
               </div>
-
-              <div>
-                <label className="text-[10px] font-black text-slate-400 uppercase mb-1.5 block">Category</label>
+              <div className="space-y-2">
+                <label className="text-[10px] font-bold text-slate-400 uppercase tracking-widest">Category</label>
                 <select 
-                  name="categoryId" 
-                  defaultValue={editingProduct?.categoryId}
-                  className="w-full h-12 bg-slate-50 border border-slate-200 rounded-xl px-4 text-sm font-bold focus:outline-none focus:ring-2 focus:ring-[#2563EB]/10"
+                  className="w-full bg-slate-50 border border-slate-200 rounded-xl h-10 px-3 text-sm focus:ring-2 focus:ring-blue-500 outline-none"
+                  value={formData.categoryId}
+                  onChange={(e) => setFormData({...formData, categoryId: e.target.value})}
                 >
-                  <option value="">Uncategorized</option>
-                  {categories.map(cat => (
-                    <option key={cat.id} value={cat.id}>{cat.name}</option>
-                  ))}
+                  {MOCK_CATEGORIES.map(c => <option key={c.id} value={c.id}>{c.name}</option>)}
                 </select>
               </div>
+            </div>
 
-              <div className="relative">
-                <label className="text-[10px] font-black text-slate-400 uppercase mb-1.5 block">SKU / BARCODE</label>
-                <div className="relative">
-                  <Input name="sku" defaultValue={editingProduct?.sku} placeholder="Auto-generated" className="h-12 bg-slate-50 border-slate-200 rounded-xl font-mono uppercase font-bold" />
-                </div>
+            <div className="grid grid-cols-2 gap-4 p-4 bg-slate-50 rounded-2xl border border-slate-200">
+              <div className="space-y-2">
+                <label className="text-[10px] font-bold text-slate-400 uppercase tracking-widest">Cost Price (₱)</label>
+                <Input 
+                  type="number" 
+                  className="bg-white border-slate-200 rounded-xl font-bold"
+                  value={formData.cost}
+                  onChange={(e) => setFormData({...formData, cost: Number(e.target.value)})}
+                />
               </div>
-
-              <div className="grid grid-cols-2 gap-4">
-                <div>
-                  <label className="text-[10px] font-black text-slate-400 uppercase mb-1.5 block">Cost (PHP)</label>
-                  <div className="relative">
-                    <span className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400 font-bold">₱</span>
-                    <Input name="cost" required type="number" step="0.01" defaultValue={editingProduct?.cost} className="pl-8 h-12 bg-slate-50 border-slate-200 rounded-xl font-bold text-slate-600" />
-                  </div>
-                </div>
-                <div>
-                  <label className="text-[10px] font-black text-slate-400 uppercase mb-1.5 block">Price (PHP)</label>
-                  <div className="relative">
-                    <span className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400 font-bold">₱</span>
-                    <Input name="price" required type="number" step="0.01" defaultValue={editingProduct?.price} className="pl-8 h-12 bg-slate-50 border-slate-200 rounded-xl font-black text-blue-600" />
-                  </div>
-                </div>
+              <div className="space-y-2">
+                <label className="text-[10px] font-bold text-slate-400 uppercase tracking-widest">Selling Price (₱)</label>
+                <Input 
+                  type="number" 
+                  className="bg-white border-slate-200 rounded-xl font-bold text-blue-600"
+                  value={formData.price}
+                  onChange={(e) => setFormData({...formData, price: Number(e.target.value)})}
+                />
               </div>
-
-              <div>
-                <label className="text-[10px] font-black text-slate-400 uppercase mb-1.5 block">Initial Stock</label>
-                <Input name="stock" required type="number" defaultValue={editingProduct?.stock || 0} className="h-12 bg-slate-50 border-slate-200 rounded-xl font-bold" />
+              <div className="col-span-2 pt-2 border-t border-slate-200 flex justify-between items-center">
+                <span className="text-[10px] font-bold text-slate-400 uppercase">Gross Margin</span>
+                <span className="text-sm font-black text-emerald-600">
+                  {formData.price && formData.cost ? (((formData.price - formData.cost) / formData.price) * 100).toFixed(1) : "0"}%
+                </span>
               </div>
             </div>
 
-            <div className="p-6 bg-slate-50 border-t border-slate-200 flex gap-3">
-              <Button type="button" variant="outline" onClick={() => setIsProductSheetOpen(false)} className="flex-1 rounded-xl h-12 border-slate-200 font-bold">
-                Cancel
-              </Button>
-              <Button type="submit" className="flex-[2] rounded-xl h-12 bg-[#2563EB] hover:bg-blue-700 text-white font-black shadow-lg shadow-blue-500/20">
-                {editingProduct ? "UPDATE PRODUCT" : "SAVE PRODUCT"}
-              </Button>
+            <div className="grid grid-cols-2 gap-4">
+              <div className="space-y-2">
+                <label className="text-[10px] font-bold text-slate-400 uppercase tracking-widest">Initial Stock</label>
+                <Input 
+                  type="number" 
+                  className="bg-slate-50 border-slate-200 rounded-xl"
+                  value={formData.stock}
+                  onChange={(e) => setFormData({...formData, stock: Number(e.target.value)})}
+                />
+              </div>
+              <div className="space-y-2">
+                <label className="text-[10px] font-bold text-slate-400 uppercase tracking-widest">Low Stock Alert</label>
+                <Input 
+                  type="number" 
+                  className="bg-slate-50 border-slate-200 rounded-xl text-rose-600"
+                  value={formData.minStock}
+                  onChange={(e) => setFormData({...formData, minStock: Number(e.target.value)})}
+                />
+              </div>
             </div>
-          </form>
+          </div>
+
+          <SheetFooter className="mt-10 pt-6 border-t border-slate-100 flex-col gap-2">
+            <Button className="w-full h-12 rounded-xl bg-slate-900 hover:bg-slate-800 text-white font-bold text-lg">
+              {editingProduct ? "Update Product" : "Save Product"}
+            </Button>
+            <Button variant="ghost" className="w-full h-12 rounded-xl text-slate-500 font-bold" onClick={() => setIsProductDrawerOpen(false)}>
+              Discard Changes
+            </Button>
+          </SheetFooter>
         </SheetContent>
       </Sheet>
 
-      {/* Category Drawer */}
-      <Sheet open={isCategorySheetOpen} onOpenChange={setIsCategorySheetOpen}>
-        <SheetContent className="w-full sm:max-w-md bg-white border-l border-slate-200 p-0 overflow-y-auto">
-          <form onSubmit={handleSaveCategory} className="flex flex-col h-full">
-            <div className="p-6 border-b border-slate-100 bg-slate-50/50">
-              <SheetHeader>
-                <SheetTitle className="text-xl font-black text-slate-900 uppercase tracking-widest">
-                  {editingCategory ? "Edit Category" : "New Category"}
-                </SheetTitle>
-                <SheetDescription className="font-bold text-slate-500">Visual hotkey for your POS terminal</SheetDescription>
-              </SheetHeader>
+      {/* Category Drawer Placeholder */}
+      <Sheet open={isCategoryDrawerOpen} onOpenChange={setIsCategoryDrawerOpen}>
+        <SheetContent className="w-full sm:max-w-md">
+          <SheetHeader className="mb-6">
+            <SheetTitle className="text-xl font-black">{editingCategory ? "Edit Category" : "New Category"}</SheetTitle>
+          </SheetHeader>
+          <div className="space-y-6">
+            <div className="space-y-2">
+              <label className="text-[10px] font-bold text-slate-400 uppercase tracking-widest">Category Name</label>
+              <Input 
+                placeholder="e.g. Breakfast" 
+                className="bg-slate-50 border-slate-200 rounded-xl"
+                value={categoryFormData.name}
+                onChange={(e) => setCategoryFormData({...categoryFormData, name: e.target.value})}
+              />
             </div>
-
-            <div className="flex-1 p-6 space-y-8">
-              <div className="grid grid-cols-4 gap-4 items-end">
-                <div className="col-span-1">
-                  <label className="text-[10px] font-black text-slate-400 uppercase mb-1.5 block">Emoji</label>
-                  <Input name="emoji" required defaultValue={editingCategory?.emoji || "📁"} className="text-center text-3xl h-16 bg-slate-50 border-slate-200 rounded-2xl" />
-                </div>
-                <div className="col-span-3">
-                  <label className="text-[10px] font-black text-slate-400 uppercase mb-1.5 block">Category Name</label>
-                  <Input name="name" required defaultValue={editingCategory?.name} placeholder="e.g. Signature Lattes" className="h-16 bg-slate-50 border-slate-200 rounded-2xl text-lg font-black uppercase" />
-                </div>
-              </div>
-
-              <div>
-                <label className="text-[10px] font-black text-slate-400 uppercase mb-3 block flex items-center gap-2">
-                  <Palette className="w-3 h-3" /> Brand Color
-                </label>
-                <div className="grid grid-cols-6 gap-3">
-                  {["#2563EB", "#7C2D12", "#166534", "#92400E", "#7E22CE", "#BE123C", "#0F172A", "#F59E0B"].map(color => (
-                    <label key={color} className="relative cursor-pointer">
-                      <input 
-                        type="radio" 
-                        name="color" 
-                        value={color} 
-                        className="peer sr-only" 
-                        defaultChecked={editingCategory?.color === color || (!editingCategory && color === "#2563EB")} 
-                      />
-                      <div 
-                        className="w-full aspect-square rounded-xl border-4 border-transparent peer-checked:border-white shadow-sm ring-1 ring-slate-200 peer-checked:ring-2 peer-checked:ring-slate-900 transition-all"
-                        style={{ backgroundColor: color }}
-                      />
-                    </label>
-                  ))}
-                </div>
+            <div className="space-y-2">
+              <label className="text-[10px] font-bold text-slate-400 uppercase tracking-widest">Brand Color</label>
+              <div className="flex gap-4 items-center p-3 bg-slate-50 rounded-xl border border-slate-200">
+                <input 
+                  type="color" 
+                  className="w-12 h-12 rounded-lg cursor-pointer border-none bg-transparent"
+                  value={categoryFormData.color}
+                  onChange={(e) => setCategoryFormData({...categoryFormData, color: e.target.value})}
+                />
+                <span className="text-sm font-mono font-bold text-slate-600 uppercase tracking-wider">{categoryFormData.color}</span>
               </div>
             </div>
-
-            <div className="p-6 bg-slate-50 border-t border-slate-200 flex gap-3">
-              <Button type="button" variant="outline" onClick={() => setIsCategorySheetOpen(false)} className="flex-1 rounded-xl h-12 border-slate-200 font-bold">
-                Cancel
-              </Button>
-              <Button type="submit" className="flex-[2] rounded-xl h-12 bg-[#0F172A] hover:bg-slate-800 text-white font-black shadow-lg shadow-slate-900/20">
-                {editingCategory ? "UPDATE CATEGORY" : "SAVE CATEGORY"}
-              </Button>
+            <div className="space-y-2">
+              <label className="text-[10px] font-bold text-slate-400 uppercase tracking-widest">Cover Image URL</label>
+              <Input 
+                placeholder="https://..." 
+                className="bg-slate-50 border-slate-200 rounded-xl"
+                value={categoryFormData.image}
+                onChange={(e) => setCategoryFormData({...categoryFormData, image: e.target.value})}
+              />
             </div>
-          </form>
+          </div>
+          <SheetFooter className="mt-10 pt-6 border-t border-slate-100">
+            <Button className="w-full h-12 rounded-xl bg-slate-900 font-bold">Save Category</Button>
+          </SheetFooter>
         </SheetContent>
       </Sheet>
 

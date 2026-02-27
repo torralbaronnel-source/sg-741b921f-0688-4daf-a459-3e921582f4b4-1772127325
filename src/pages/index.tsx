@@ -186,13 +186,17 @@ export default function Dashboard() {
             <CardContent className="p-0">
               <div className="divide-y divide-slate-50">
                 {products.filter(p => p.stock <= 10).slice(0, 6).map(product => (
-                  <div key={product.id} className="flex justify-between items-center p-4">
-                    <div className="flex items-center gap-3">
-                      <span className="text-lg">{product.emoji || '📦'}</span>
-                      <div>
-                        <div className="text-xs font-black text-slate-900 uppercase truncate max-w-[150px]">{product.name}</div>
-                        <div className="text-[10px] font-bold text-slate-400">SKU: {product.sku || 'N/A'}</div>
-                      </div>
+                  <div key={product.id} className="flex items-center gap-4 p-4 hover:bg-slate-50 rounded-2xl transition-colors group">
+                    <div className="w-12 h-12 rounded-xl bg-white border border-slate-100 shadow-sm flex items-center justify-center overflow-hidden">
+                      {product.image ? (
+                        <img src={product.image} alt="" className="w-full h-full object-cover group-hover:scale-110 transition-transform" />
+                      ) : (
+                        <Package className="w-6 h-6 text-slate-300" />
+                      )}
+                    </div>
+                    <div className="flex-1 min-w-0">
+                      <div className="text-xs font-black text-slate-900 uppercase truncate max-w-[150px]">{product.name}</div>
+                      <div className="text-[10px] font-bold text-slate-400">SKU: {product.sku || 'N/A'}</div>
                     </div>
                     <div className="text-right">
                       <div className={`text-sm font-black ${product.stock <= 5 ? 'text-red-600' : 'text-orange-600'}`}>

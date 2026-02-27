@@ -3,9 +3,8 @@ export type PaymentMethod = "CASH" | "QR_PH" | "MAYA_TERMINAL";
 export interface Category {
   id: string;
   name: string;
-  emoji: string;
+  image?: string;
   color: string;
-  itemCount?: number;
 }
 
 export interface Product {
@@ -13,15 +12,11 @@ export interface Product {
   name: string;
   price: number;
   cost: number;
-  category: string;
-  categoryId?: string;
+  categoryId: string;
   stock: number;
   image?: string;
-  emoji?: string;
-  sku?: string;
-  color?: string;
-  lowStockThreshold?: number;
-  hotkey?: string; // e.g., "1", "2" for quick add
+  sku: string;
+  minStock?: number;
 }
 
 export interface CartItem extends Product {

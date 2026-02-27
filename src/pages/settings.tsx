@@ -12,11 +12,6 @@ import { toast } from "@/hooks/use-toast";
 export default function SettingsPage() {
   const [settings, setSettings] = useState<AppSettings>(INITIAL_SETTINGS);
   const [newCategoryName, setNewCategoryName] = useState("");
-  const [categories, setCategories] = useState<Category[]>([
-    { id: "cat-1", name: "COFFEE", emoji: "☕", color: "#7C2D12" },
-    { id: "cat-2", name: "PASTRY", emoji: "🥐", color: "#92400E" },
-    { id: "cat-3", name: "MERCH", emoji: "👕", color: "#2563EB" },
-  ]);
 
   useEffect(() => {
     const saved = localStorage.getItem("pos_settings");
@@ -24,23 +19,24 @@ export default function SettingsPage() {
   }, []);
 
   const handleSave = () => {
-    localStorage.setItem("pos_settings", JSON.stringify(settings));
     toast({
       title: "Settings Saved",
-      description: "Business configuration has been updated successfully.",
+      description: "Business configuration updated successfully.",
     });
   };
 
   const addCategory = () => {
     if (!newCategoryName.trim()) return;
-    const cat: Category = {
-      id: Date.now().toString(),
+    const catId = `cat-${Date.now()}`;
+    const newCat: Category = {
+      id: catId,
       name: newCategoryName,
-      emoji: "📁",
       color: "#2563EB"
     };
-    const updated = { ...settings, categories: [...(settings?.categories || []), cat] };
-    setSettings(updated);
+    setSettings(prev => ({
+      ...prev,
+      categories: [...prev.categories, newCat]
+    }));
     setNewCategoryName("");
   };
 
