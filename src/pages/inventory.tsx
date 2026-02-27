@@ -156,7 +156,6 @@ export default function InventoryPage() {
       const newProduct: Product = {
         id: `p-${Date.now()}`,
         ...data,
-        category: categories.find(c => c.id === data.categoryId)?.name || "Uncategorized",
       };
       setProducts(prev => [newProduct, ...prev]);
       toast({ title: "Created", description: "Product added to inventory" });
@@ -188,7 +187,8 @@ export default function InventoryPage() {
     } else {
       const newCategory: Category = {
         id: `cat-${Date.now()}`,
-        ...data
+        ...data,
+        color: "#2563EB" // Default blue for new categories
       };
       setCategories(prev => [...prev, newCategory]);
       toast({ title: "Created", description: "New category added" });
@@ -410,6 +410,7 @@ export default function InventoryPage() {
                       const isLow = product.stock <= (product.minStock || 5);
                       const margin = product.price - product.cost;
                       const marginPercent = ((margin / product.price) * 100).toFixed(0);
+                      const categoryName = categories.find(c => c.id === product.categoryId)?.name || "Uncategorized";
 
                       return (
                         <tr key={product.id} className="hover:bg-slate-50/50 transition-colors group">
@@ -431,7 +432,7 @@ export default function InventoryPage() {
                           </td>
                           <td className="px-6 py-4">
                             <Badge variant="outline" className="bg-slate-50 text-slate-600 font-bold text-[10px] rounded-lg px-2 border-slate-200 uppercase">
-                              {product.category}
+                              {categoryName}
                             </Badge>
                           </td>
                           <td className="px-6 py-4">
