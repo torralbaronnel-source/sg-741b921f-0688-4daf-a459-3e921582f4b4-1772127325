@@ -44,6 +44,7 @@ export default function InventoryPage() {
   const [selectedCategory, setSelectedCategory] = useState("all");
   const [isProductDialogOpen, setIsProductDialogOpen] = useState(false);
   const [editingProduct, setEditingProduct] = useState<Product | null>(null);
+  const [isLoading, setIsLoading] = useState(false);
   const { toast } = useToast();
 
   const productForm = useForm({
@@ -106,6 +107,29 @@ export default function InventoryPage() {
       toast({ title: "Product deleted" });
     } catch (error) {
       toast({ variant: "destructive", title: "Delete failed" });
+    }
+  };
+
+  const handleImageUpload = async (e: React.ChangeEvent<HTMLInputElement>, productId: string) => {
+    const file = e.target.files?.[0];
+    if (!file || !productId) return;
+
+    try {
+      setIsLoading(true);
+      const publicUrl = await productService.uploadProductImage(productId, file);
+      toast({
+        title: "Success",
+        description: "Image synced to all terminals.",
+      });
+      // Real-time listener will update the list automatically
+    } catch (error: any) {
+      toast({
+        title: "Upload Failed",
+        description: error.message,
+        variant: "destructive",
+      });
+    } finally {
+      setIsLoading(false);
     }
   };
 
