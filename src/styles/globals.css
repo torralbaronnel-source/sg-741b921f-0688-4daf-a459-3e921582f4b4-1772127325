@@ -112,9 +112,21 @@
     -webkit-tap-highlight-color: transparent;
   }
   body {
-    @apply bg-background text-foreground antialiased overflow-x-hidden;
+    @apply bg-background text-foreground antialiased;
     font-feature-settings: "rlig" 1, "calt" 1;
   }
+}
+
+/* Specific POS utility for the high-density grid */
+.pos-grid-scrollbar::-webkit-scrollbar {
+  width: 4px;
+}
+.pos-grid-scrollbar::-webkit-scrollbar-track {
+  background: transparent;
+}
+.pos-grid-scrollbar::-webkit-scrollbar-thumb {
+  background: #CBD5E1;
+  border-radius: 10px;
 }
 
 @layer components {

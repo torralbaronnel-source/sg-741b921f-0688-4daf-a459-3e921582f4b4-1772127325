@@ -1,56 +1,31 @@
-import { Product, Sale } from "@/types/pos";
+import { Product, Category, Sale, InventoryMovement, AppSettings } from "@/types/pos";
 
-/**
- * INITIAL_PRODUCTS: The starting inventory for the POS
- */
+export const DEFAULT_CATEGORIES: Category[] = [
+  { id: "1", name: "Coffee", slug: "coffee" },
+  { id: "2", name: "Pastry", slug: "pastry" },
+  { id: "3", name: "Food", slug: "food" },
+  { id: "4", name: "Merch", slug: "merch" },
+];
+
+export const INITIAL_SETTINGS: AppSettings = {
+  shopName: "POCKET POS PH",
+  shopAddress: "123 BGC St., Taguig City, Philippines",
+  tin: "000-123-456-000",
+  categories: DEFAULT_CATEGORIES,
+};
+
 export const MOCK_PRODUCTS: Product[] = [
-  { id: "1", name: "Espresso", price: 80, stock: 50, category: "Coffee", emoji: "☕", discount: 0 },
-  { id: "2", name: "Americano", price: 90, stock: 45, category: "Coffee", emoji: "☕" },
-  { id: "3", name: "Latte", price: 120, stock: 12, category: "Coffee", emoji: "🥛", discount: 15, originalPrice: 140 },
-  { id: "4", name: "Cappuccino", price: 120, stock: 5, category: "Coffee", emoji: "☁️" },
-  { id: "5", name: "Espresso", price: 70, stock: 100, category: "Coffee", emoji: "⚡" },
-  { id: "6", name: "Mocha", price: 130, stock: 8, category: "Coffee", emoji: "🍫", discount: 10, originalPrice: 145 },
-  { id: "7", name: "Caramel Macchiato", price: 140, stock: 15, category: "Coffee", emoji: "🍯" },
-  { id: "8", name: "Iced Coffee", price: 95, stock: 30, category: "Coffee", emoji: "🧊" },
-  { id: "9", name: "Cold Brew", price: 110, stock: 20, category: "Coffee", emoji: "❄️" },
-  { id: "10", name: "Chocolate Cake", price: 150, stock: 10, category: "Pastry", emoji: "🍰", discount: 0 },
-  { id: "11", name: "Blueberry Muffin", price: 85, stock: 15, category: "Pastry", emoji: "🧁", discount: 0 },
-  { id: "12", name: "Croissant", price: 95, stock: 12, category: "Pastry", emoji: "🥐", discount: 0 },
-  { id: "13", name: "Egg Sandwich", price: 120, stock: 8, category: "Food", emoji: "🥪", discount: 0 },
+  { id: "1", sku: "CF-001", name: "Espresso", price: 80, cost: 15, stock: 49, lowStockThreshold: 10, category: "Coffee", emoji: "☕" },
+  { id: "2", sku: "CF-002", name: "Americano", price: 90, cost: 18, stock: 44, lowStockThreshold: 10, category: "Coffee", emoji: "☕" },
+  { id: "3", sku: "CF-003", name: "Latte", price: 120, cost: 35, stock: 11, lowStockThreshold: 5, category: "Coffee", emoji: "🥛" },
+  { id: "4", sku: "CF-004", name: "Cappuccino", price: 120, cost: 35, stock: 4, lowStockThreshold: 5, category: "Coffee", emoji: "☕" },
+  { id: "5", sku: "PS-001", name: "Croissant", price: 110, cost: 45, stock: 12, lowStockThreshold: 3, category: "Pastry", emoji: "🥐" },
+  { id: "6", sku: "PS-002", name: "Choco Cake", price: 150, cost: 60, stock: 10, lowStockThreshold: 2, category: "Pastry", emoji: "🍰" },
 ];
 
-export const MOCK_SALES: Sale[] = [
-  {
-    id: "1",
-    orderNo: "POS-9842",
-    total: 320,
-    subtotal: 320,
-    tax: 0,
-    discount: 0,
-    status: "PAID",
-    paymentMethod: "CASH",
-    items: [
-      { id: "1", name: "Espresso", quantity: 2, price: 80 },
-      { id: "3", name: "Latte", quantity: 1, price: 120 }
-    ],
-    timestamp: new Date().toISOString(),
-    createdAt: new Date().toISOString()
-  },
-  {
-    id: "2",
-    orderNo: "POS-9843",
-    total: 250,
-    subtotal: 250,
-    tax: 0,
-    discount: 0,
-    status: "PAID",
-    paymentMethod: "QR_PH",
-    providerRef: "TXN123456789",
-    items: [
-      { id: "10", name: "Chocolate Cake", quantity: 1, price: 150 },
-      { id: "2", name: "Americano", quantity: 1, price: 100 }
-    ],
-    timestamp: new Date().toISOString(),
-    createdAt: new Date().toISOString()
-  }
+export const MOCK_MOVEMENTS: InventoryMovement[] = [
+  { id: "m1", productId: "4", productName: "Cappuccino", type: "STOCK_IN", quantity: 20, timestamp: new Date(Date.now() - 86400000).toISOString(), reason: "Supplier Delivery" },
+  { id: "m2", productId: "3", productName: "Latte", type: "WASTE", quantity: -2, timestamp: new Date(Date.now() - 43200000).toISOString(), reason: "Spilled/Waste" },
 ];
+
+export const MOCK_SALES: Sale[] = [];

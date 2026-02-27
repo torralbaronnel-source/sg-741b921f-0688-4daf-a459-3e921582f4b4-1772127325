@@ -1,538 +1,183 @@
 import React, { useState, useEffect, useMemo } from "react";
 import { SEO } from "@/components/SEO";
-import { 
-  ArrowLeft, 
-  Search, 
-  Download, 
-  ChevronRight, 
-  ChevronLeft,
-  ChevronUp,
-  ChevronDown,
-  X,
-  Receipt,
-  Package,
-  Calendar as CalendarIcon,
-  Info
-} from "lucide-react";
-import Link from "next/link";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
+import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
-import { 
-  Card, 
-  CardContent, 
-  CardHeader, 
-  CardTitle 
-} from "@/components/ui/card";
-import {
-  DropdownMenu,
-  DropdownMenuContent,
-  DropdownMenuItem,
-  DropdownMenuTrigger,
-} from "@/components/ui/dropdown-menu";
-import {
-  Pagination,
-  PaginationContent,
-  PaginationItem,
-  PaginationLink,
-} from "@/components/ui/pagination";
-import { useToast } from "@/hooks/use-toast";
+import { Search, ArrowLeft, Filter, Download, Calendar, ArrowRight, Printer, Receipt, MoreVertical } from "lucide-react";
+import Link from "next/link";
 import { Sale, PaymentMethod } from "@/types/pos";
-import { MOCK_SALES } from "@/lib/mock-data";
-import { format, isWithinInterval, startOfDay, endOfDay, subDays, startOfMonth, endOfMonth, subMonths, startOfYear, endOfYear } from "date-fns";
-import { motion, AnimatePresence } from "framer-motion";
 import { cn } from "@/lib/utils";
-import { 
-  Dialog, 
-  DialogContent, 
-  DialogHeader, 
-  DialogTitle, 
-  DialogDescription,
-  DialogFooter
-} from "@/components/ui/dialog";
-import { Progress } from "@/components/ui/progress";
-
-type DateRangeType = 'today' | '7days' | '30days' | 'thisMonth' | 'lastMonth' | 'thisYear' | 'lastYear' | 'all';
-
-const TRANSACTION_LIMIT = 500;
 
 export default function TransactionsPage() {
+  const [sales, setSales] = useState<Sale[]>([]);
   const [searchTerm, setSearchTerm] = useState("");
-  const [filterMethod, setFilterMethod] = useState<PaymentMethod | "ALL">("ALL");
-  const [currentPage, setCurrentPage] = useState(1);
-  const [selectedSale, setSelectedSale] = useState<Sale | null>(null);
-  const [isPanelExpanded, setIsPanelExpanded] = useState(false);
-  const { toast } = useToast();
-  const [settings, setSettings] = useState<any>(null);
-  const [showUpgradeModal, setShowUpgradeModal] = useState(false);
+  const [selectedMethod, setSelectedMethod] = useState<PaymentMethod | "ALL">("ALL");
 
   useEffect(() => {
-    const saved = localStorage.getItem("pocketpos_settings");
-    if (saved) setSettings(JSON.parse(saved));
-  }, []);
-
-  const handleExport = () => {
-    if (settings?.subscriptionTier === "FREE") {
-      setShowUpgradeModal(true);
-      return;
-    }
-    // Proceed with export...
-    alert("Exporting transactions to CSV...");
-  };
-
-  const itemsPerPage = 10;
-
-  // Enhance mock data with items if they don't exist
-  const salesWithItems: Sale[] = useMemo(() => {
-    return MOCK_SALES.map(sale => ({
-      ...sale,
-      items: sale.items || [
-        { id: "1", name: "Iced Latte", quantity: 2, price: 120 },
-        { id: "2", name: "Croissant", quantity: 1, price: 85 }
-      ]
-    }));
+    const savedSales = localStorage.getItem("pos_sales");
+    if (savedSales) setSales(JSON.parse(savedSales));
   }, []);
 
   const filteredSales = useMemo(() => {
-    return salesWithItems.filter((sale) => {
-      const matchesSearch = sale.orderNo.toLowerCase().includes(searchTerm.toLowerCase()) ||
-                          (sale.providerRef?.toLowerCase().includes(searchTerm.toLowerCase()));
-      const matchesMethod = filterMethod === "ALL" || sale.paymentMethod === filterMethod;
+    return sales.filter(sale => {
+      const matchesSearch = sale.orderNo.toLowerCase().includes(searchTerm.toLowerCase());
+      const matchesMethod = selectedMethod === "ALL" || sale.paymentMethod === selectedMethod;
       return matchesSearch && matchesMethod;
-    }).sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime());
-  }, [searchTerm, filterMethod, salesWithItems]);
+    }).sort((a, b) => new Date(b.timestamp).getTime() - new Date(a.timestamp).getTime());
+  }, [sales, searchTerm, selectedMethod]);
 
-  const totalPages = Math.ceil(filteredSales.length / itemsPerPage);
-  const paginatedSales = filteredSales.slice(
-    (currentPage - 1) * itemsPerPage,
-    currentPage * itemsPerPage
-  );
-
-  useEffect(() => {
-    setCurrentPage(1);
-  }, [searchTerm, filterMethod]);
-
-  const exportToCSV = (range?: DateRangeType) => {
-    let dataToExport = filteredSales;
-
-    if (range && range !== 'all') {
-      const now = new Date();
-      let start: Date, end: Date;
-
-      switch (range) {
-        case 'today': start = startOfDay(now); end = endOfDay(now); break;
-        case '7days': start = subDays(startOfDay(now), 7); end = endOfDay(now); break;
-        case '30days': start = subDays(startOfDay(now), 30); end = endOfDay(now); break;
-        case 'thisMonth': start = startOfMonth(now); end = endOfMonth(now); break;
-        case 'lastMonth': {
-          const lastMonth = subMonths(now, 1);
-          start = startOfMonth(lastMonth);
-          end = endOfMonth(lastMonth);
-          break;
-        }
-        case 'thisYear': start = startOfYear(now); end = endOfYear(now); break;
-        case 'lastYear': {
-          const lastYear = subDays(startOfYear(now), 1);
-          start = startOfYear(lastYear);
-          end = endOfYear(lastYear);
-          break;
-        }
-        default: start = new Date(0); end = now;
-      }
-
-      dataToExport = salesWithItems.filter(sale => 
-        isWithinInterval(new Date(sale.createdAt), { start, end })
-      );
-    }
-
-    if (dataToExport.length === 0) {
-      toast({ title: "No data to export", variant: "destructive" });
-      return;
-    }
-
-    const headers = ["Order No", "Date", "Total", "Method", "Status", "Reference"];
-    const csvContent = [
-      headers.join(","),
-      ...dataToExport.map(s => [
-        s.orderNo,
-        format(new Date(s.createdAt), "yyyy-MM-dd HH:mm"),
-        s.total,
-        s.paymentMethod,
-        s.status,
-        s.providerRef || ""
-      ].join(","))
-    ].join("\n");
-
-    const blob = new Blob([csvContent], { type: "text/csv;charset=utf-8;" });
-    const link = document.createElement("a");
-    const url = URL.createObjectURL(blob);
-    link.setAttribute("href", url);
-    link.setAttribute("download", `transactions_${range || 'filtered'}_${format(new Date(), "yyyyMMdd")}.csv`);
-    document.body.appendChild(link);
-    link.click();
-    document.body.removeChild(link);
-
-    toast({
-      title: "Export Successful",
-      description: `Exported ${dataToExport.length} transactions.`,
-    });
-  };
-
-  const handleRowClick = (sale: Sale) => {
-    setSelectedSale(sale);
-    setIsPanelExpanded(true);
-  };
-
-  const usagePercent = settings ? (settings.monthlyTransactionCount / TRANSACTION_LIMIT) * 100 : 0;
+  const stats = useMemo(() => {
+    const total = filteredSales.reduce((acc, sale) => acc + sale.total, 0);
+    const count = filteredSales.length;
+    const cash = filteredSales.filter(s => s.paymentMethod === "CASH").reduce((acc, s) => acc + s.total, 0);
+    const digital = total - cash;
+    return { total, count, cash, digital };
+  }, [filteredSales]);
 
   return (
-    <div className="min-h-screen bg-[#F5F6F8] pb-24 lg:pb-0">
-      <SEO title="Transactions | PocketPOS PH" />
-      
-      {/* Transaction Counter - PocketPOS Brand */}
-      {settings?.subscriptionTier === "FREE" && (
-        <div className="bg-amber-50 border-b border-amber-100 px-4 py-2">
-          <div className="max-w-7xl mx-auto flex items-center justify-between gap-4">
-            <div className="flex items-center gap-2 text-[11px] font-bold text-amber-700 uppercase tracking-wider">
-              <Info className="w-3.5 h-3.5" />
-              Monthly Free Usage
-            </div>
-            <div className="flex-1 max-w-[200px] h-1.5 bg-amber-200/50 rounded-full overflow-hidden">
-              <div 
-                className="h-full bg-amber-500 transition-all duration-500" 
-                style={{ width: `${usagePercent}%` }} 
-              />
-            </div>
-            <div className="text-[11px] font-black text-amber-700">
-              {settings.monthlyTransactionCount}/{TRANSACTION_LIMIT}
-            </div>
-          </div>
-        </div>
-      )}
+    <div className="min-h-screen bg-[#F8FAFC] flex flex-col font-sans">
+      <SEO title="Transaction History - PocketPOS PH" />
       
       {/* Header */}
-      <div className="bg-white border-b border-slate-200 sticky top-0 z-30 px-4 py-4">
-        <div className="max-w-7xl mx-auto flex items-center justify-between">
-          <div className="flex items-center gap-3">
-            <Link href="/">
-              <Button variant="ghost" size="icon" className="rounded-full">
-                <ArrowLeft className="w-5 h-5" />
-              </Button>
-            </Link>
-            <h1 className="text-xl font-bold text-[#0F172A]">History</h1>
-          </div>
-          
-          <DropdownMenu>
-            <DropdownMenuTrigger asChild>
-              <Button variant="outline" className="gap-2 rounded-xl">
-                <Download className="w-4 h-4" />
-                <span>Export</span>
-              </Button>
-            </DropdownMenuTrigger>
-            <DropdownMenuContent align="end" className="w-56 rounded-xl">
-              <DropdownMenuItem onClick={() => exportToCSV()}>Current View</DropdownMenuItem>
-              <DropdownMenuItem onClick={() => exportToCSV('today')}>Today</DropdownMenuItem>
-              <DropdownMenuItem onClick={() => exportToCSV('7days')}>Last 7 Days</DropdownMenuItem>
-              <DropdownMenuItem onClick={() => exportToCSV('30days')}>Last 30 Days</DropdownMenuItem>
-              <DropdownMenuItem onClick={() => exportToCSV('thisMonth')}>This Month</DropdownMenuItem>
-              <DropdownMenuItem onClick={() => exportToCSV('lastMonth')}>Last Month</DropdownMenuItem>
-              <DropdownMenuItem onClick={() => exportToCSV('all')}>All Time</DropdownMenuItem>
-            </DropdownMenuContent>
-          </DropdownMenu>
+      <header className="bg-white border-b border-slate-200 h-16 flex items-center px-4 sticky top-0 z-10">
+        <Link href="/">
+          <Button variant="ghost" size="icon" className="mr-2">
+            <ArrowLeft className="w-5 h-5 text-slate-600" />
+          </Button>
+        </Link>
+        <h1 className="text-xl font-bold text-slate-900 flex-1">Transactions</h1>
+        <div className="flex gap-2">
+          <Button variant="outline" size="sm" className="h-9">
+            <Download className="w-4 h-4 mr-2" /> Export
+          </Button>
         </div>
-      </div>
+      </header>
 
-      <div className="max-w-7xl mx-auto p-4 space-y-4">
+      <main className="flex-1 p-4 md:p-6 max-w-7xl mx-auto w-full space-y-6">
+        {/* Stats Grid */}
+        <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
+          <Card className="border-slate-200 shadow-sm">
+            <CardContent className="pt-6">
+              <div className="text-xs font-bold text-slate-400 uppercase tracking-widest mb-1">Total Sales</div>
+              <div className="text-2xl font-bold text-slate-900">₱{stats.total.toLocaleString(undefined, { minimumFractionDigits: 2 })}</div>
+            </CardContent>
+          </Card>
+          <Card className="border-slate-200 shadow-sm">
+            <CardContent className="pt-6">
+              <div className="text-xs font-bold text-slate-400 uppercase tracking-widest mb-1">Orders</div>
+              <div className="text-2xl font-bold text-slate-900">{stats.count}</div>
+            </CardContent>
+          </Card>
+          <Card className="border-slate-200 shadow-sm">
+            <CardContent className="pt-6">
+              <div className="text-xs font-bold text-slate-400 uppercase tracking-widest mb-1">Cash</div>
+              <div className="text-2xl font-bold text-emerald-600">₱{stats.cash.toLocaleString(undefined, { minimumFractionDigits: 2 })}</div>
+            </CardContent>
+          </Card>
+          <Card className="border-slate-200 shadow-sm">
+            <CardContent className="pt-6">
+              <div className="text-xs font-bold text-slate-400 uppercase tracking-widest mb-1">Digital</div>
+              <div className="text-2xl font-bold text-blue-600">₱{stats.digital.toLocaleString(undefined, { minimumFractionDigits: 2 })}</div>
+            </CardContent>
+          </Card>
+        </div>
+
         {/* Filters */}
         <div className="flex flex-col md:flex-row gap-4">
           <div className="relative flex-1">
-            <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400" />
+            <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400 w-4 h-4" />
             <Input 
-              placeholder="Search Order # or Ref..." 
-              className="pl-10 h-12 bg-white border-slate-200 rounded-xl"
+              placeholder="Search by Order No..." 
+              className="pl-10 h-11 bg-white border-slate-200"
               value={searchTerm}
               onChange={(e) => setSearchTerm(e.target.value)}
             />
           </div>
-          <div className="flex gap-2 overflow-x-auto pb-2 md:pb-0 scrollbar-hide">
-            {["ALL", "CASH", "QR_PH", "CARD", "MAYA_TERMINAL"].map((method) => (
-              <Button
-                key={method}
-                variant={filterMethod === method ? "default" : "outline"}
-                size="sm"
-                className={cn(
-                  "rounded-full whitespace-nowrap h-10 px-4",
-                  filterMethod === method ? "bg-[#2563EB]" : "bg-white text-slate-600 border-slate-200"
-                )}
-                onClick={() => setFilterMethod(method as any)}
-              >
-                {method.replace("_", " ")}
-              </Button>
-            ))}
+          <div className="flex gap-2">
+            <Button 
+              variant={selectedMethod === "ALL" ? "default" : "outline"}
+              onClick={() => setSelectedMethod("ALL")}
+              className="h-11"
+            >
+              All
+            </Button>
+            <Button 
+              variant={selectedMethod === "CASH" ? "default" : "outline"}
+              onClick={() => setSelectedMethod("CASH")}
+              className="h-11"
+            >
+              Cash
+            </Button>
+            <Button 
+              variant={selectedMethod === "QR_PH" ? "default" : "outline"}
+              onClick={() => setSelectedMethod("QR_PH")}
+              className="h-11"
+            >
+              Digital
+            </Button>
           </div>
         </div>
 
-        {/* Transaction Table */}
-        <Card className="border-none shadow-sm rounded-2xl overflow-hidden">
-          <CardContent className="p-0">
-            <div className="overflow-x-auto">
-              <table className="w-full text-left">
-                <thead className="bg-slate-50 border-b border-slate-100">
-                  <tr>
-                    <th className="px-6 py-4 text-xs font-semibold text-slate-500 uppercase">Order</th>
-                    <th className="px-6 py-4 text-xs font-semibold text-slate-500 uppercase">Total</th>
-                    <th className="px-6 py-4 text-xs font-semibold text-slate-500 uppercase">Method</th>
-                    <th className="px-6 py-4 text-xs font-semibold text-slate-500 uppercase">Status</th>
-                    <th className="px-6 py-4 text-xs font-semibold text-slate-500 uppercase text-right">Date</th>
+        {/* Transactions Table */}
+        <div className="bg-white rounded-xl border border-slate-200 shadow-sm overflow-hidden">
+          <table className="w-full text-left border-collapse">
+            <thead>
+              <tr className="bg-slate-50 text-slate-500 text-[10px] uppercase tracking-[0.2em] border-b border-slate-200 font-bold">
+                <th className="px-6 py-4">Time / Order</th>
+                <th className="px-6 py-4">Method</th>
+                <th className="px-6 py-4">Items</th>
+                <th className="px-6 py-4 text-right">Total</th>
+                <th className="px-6 py-4 text-right">Action</th>
+              </tr>
+            </thead>
+            <tbody className="divide-y divide-slate-100">
+              {filteredSales.length === 0 ? (
+                <tr>
+                  <td colSpan={5} className="px-6 py-12 text-center text-slate-400 uppercase text-xs font-bold tracking-widest">
+                    No transactions found
+                  </td>
+                </tr>
+              ) : (
+                filteredSales.map(sale => (
+                  <tr key={sale.id} className="hover:bg-slate-50 transition-colors group">
+                    <td className="px-6 py-4">
+                      <div className="text-xs font-bold text-slate-900">#{sale.orderNo}</div>
+                      <div className="text-[10px] text-slate-400 font-mono uppercase">
+                        {new Date(sale.timestamp).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
+                      </div>
+                    </td>
+                    <td className="px-6 py-4">
+                      <Badge className={cn(
+                        "text-[10px] font-bold uppercase tracking-widest",
+                        sale.paymentMethod === "CASH" ? "bg-emerald-50 text-emerald-600 border-emerald-100" : "bg-blue-50 text-blue-600 border-blue-100"
+                      )} variant="outline">
+                        {sale.paymentMethod.replace('_', ' ')}
+                      </Badge>
+                    </td>
+                    <td className="px-6 py-4">
+                      <div className="text-xs text-slate-600 font-medium">
+                        {sale.items.length} {sale.items.length === 1 ? 'Item' : 'Items'}
+                      </div>
+                      <div className="text-[10px] text-slate-400 truncate max-w-[200px]">
+                        {sale.items.map(i => i.name).join(', ')}
+                      </div>
+                    </td>
+                    <td className="px-6 py-4 text-right font-mono font-bold text-slate-900">
+                      ₱{sale.total.toFixed(2)}
+                    </td>
+                    <td className="px-6 py-4 text-right">
+                      <Button variant="ghost" size="icon" className="h-8 w-8 text-slate-400 hover:text-slate-900">
+                        <Printer className="w-4 h-4" />
+                      </Button>
+                    </td>
                   </tr>
-                </thead>
-                <tbody className="divide-y divide-slate-100 bg-white">
-                  {paginatedSales.map((sale) => (
-                    <tr 
-                      key={sale.id} 
-                      className={cn(
-                        "hover:bg-slate-50 transition-colors cursor-pointer group",
-                        selectedSale?.id === sale.id && "bg-blue-50/50"
-                      )}
-                      onClick={() => handleRowClick(sale)}
-                    >
-                      <td className="px-6 py-5">
-                        <div className="font-bold text-[#0F172A]">{sale.orderNo}</div>
-                        <div className="text-xs text-slate-400 font-mono">{sale.providerRef || 'No Reference'}</div>
-                      </td>
-                      <td className="px-6 py-5">
-                        <span className="font-bold text-[#0F172A]">₱{sale.total.toFixed(2)}</span>
-                      </td>
-                      <td className="px-6 py-5">
-                        <Badge variant="outline" className="bg-slate-50 border-slate-200 text-slate-600 rounded-lg">
-                          {sale.paymentMethod.replace("_", " ")}
-                        </Badge>
-                      </td>
-                      <td className="px-6 py-5">
-                        <Badge className={cn(
-                          "rounded-lg",
-                          sale.status === "PAID" ? "bg-emerald-100 text-emerald-700 hover:bg-emerald-100" : "bg-amber-100 text-amber-700 hover:bg-amber-100"
-                        )}>
-                          {sale.status}
-                        </Badge>
-                      </td>
-                      <td className="px-6 py-5 text-right">
-                        <div className="text-sm text-slate-600">{format(new Date(sale.createdAt), "MMM dd")}</div>
-                        <div className="text-xs text-slate-400">{format(new Date(sale.createdAt), "HH:mm")}</div>
-                      </td>
-                    </tr>
-                  ))}
-                  {filteredSales.length === 0 && (
-                    <tr>
-                      <td colSpan={5} className="px-6 py-12 text-center text-slate-400">
-                        No transactions found matching your filters.
-                      </td>
-                    </tr>
-                  )}
-                </tbody>
-              </table>
-            </div>
-          </CardContent>
-        </Card>
-
-        {/* Pagination */}
-        {totalPages > 1 && (
-          <div className="flex items-center justify-between pt-4">
-            <p className="text-sm text-slate-500">
-              Showing <span className="font-medium">{(currentPage - 1) * itemsPerPage + 1}</span> to <span className="font-medium">{Math.min(currentPage * itemsPerPage, filteredSales.length)}</span> of <span className="font-medium">{filteredSales.length}</span> results
-            </p>
-            <Pagination className="justify-end">
-              <PaginationContent>
-                <PaginationItem>
-                  <Button 
-                    variant="ghost" 
-                    size="sm" 
-                    onClick={() => setCurrentPage(p => Math.max(1, p - 1))}
-                    disabled={currentPage === 1}
-                    className="gap-1 rounded-lg"
-                  >
-                    <ChevronLeft className="w-4 h-4" />
-                    <span>Prev</span>
-                  </Button>
-                </PaginationItem>
-                {Array.from({ length: totalPages }, (_, i) => i + 1).map((page) => (
-                  <PaginationItem key={page}>
-                    <PaginationLink 
-                      isActive={currentPage === page}
-                      onClick={() => setCurrentPage(page)}
-                      className={cn(
-                        "rounded-lg cursor-pointer",
-                        currentPage === page ? "bg-[#2563EB] text-white hover:bg-[#1D4ED8] hover:text-white" : "hover:bg-slate-100"
-                      )}
-                    >
-                      {page}
-                    </PaginationLink>
-                  </PaginationItem>
-                ))}
-                <PaginationItem>
-                  <Button 
-                    variant="ghost" 
-                    size="sm" 
-                    onClick={() => setCurrentPage(p => Math.min(totalPages, p + 1))}
-                    disabled={currentPage === totalPages}
-                    className="gap-1 rounded-lg"
-                  >
-                    <span>Next</span>
-                    <ChevronRight className="w-4 h-4" />
-                  </Button>
-                </PaginationItem>
-              </PaginationContent>
-            </Pagination>
-          </div>
-        )}
-      </div>
-
-      {/* 🚀 Dynamic Bottom Panel (Collapsible & Transparent) */}
-      <AnimatePresence>
-        {selectedSale && (
-          <motion.div
-            initial={{ y: "100%", opacity: 0 }}
-            animate={{ 
-              y: isPanelExpanded ? 0 : "calc(100% - 60px)", 
-              opacity: 1,
-              backgroundColor: isPanelExpanded ? "rgba(255, 255, 255, 0.95)" : "rgba(255, 255, 255, 0)" 
-            }}
-            exit={{ y: "100%", opacity: 0 }}
-            transition={{ type: "spring", damping: 25, stiffness: 200 }}
-            className={cn(
-              "fixed bottom-0 left-0 right-0 z-50 border-t border-slate-200/50 backdrop-blur-md",
-              !isPanelExpanded && "border-t-transparent shadow-none"
-            )}
-          >
-            {/* Toggle Handle */}
-            <div 
-              className="flex items-center justify-between px-6 py-4 cursor-pointer hover:bg-slate-50/50 transition-colors"
-              onClick={() => setIsPanelExpanded(!isPanelExpanded)}
-            >
-              <div className="flex items-center gap-3">
-                <div className={cn(
-                  "p-2 rounded-xl transition-colors",
-                  isPanelExpanded ? "bg-blue-100 text-blue-600" : "bg-white text-slate-400 shadow-sm border border-slate-100"
-                )}>
-                  <Receipt className="w-5 h-5" />
-                </div>
-                <div>
-                  <div className={cn(
-                    "font-bold transition-all",
-                    isPanelExpanded ? "text-[#0F172A]" : "text-slate-400 text-sm"
-                  )}>
-                    {isPanelExpanded ? `Order ${selectedSale.orderNo}` : "Tap for Details"}
-                  </div>
-                  {isPanelExpanded && (
-                    <div className="text-xs text-slate-500">
-                      {format(new Date(selectedSale.createdAt), "MMM dd, yyyy • HH:mm")}
-                    </div>
-                  )}
-                </div>
-              </div>
-              
-              <div className="flex items-center gap-2">
-                {!isPanelExpanded && (
-                   <Badge variant="outline" className="bg-emerald-50 text-emerald-600 border-emerald-100 mr-2">
-                     ₱{selectedSale.total.toFixed(2)}
-                   </Badge>
-                )}
-                <Button 
-                  variant="ghost" 
-                  size="icon" 
-                  className="rounded-full h-8 w-8 hover:bg-slate-200"
-                >
-                  {isPanelExpanded ? <ChevronDown className="w-5 h-5" /> : <ChevronUp className="w-5 h-5" />}
-                </Button>
-                {isPanelExpanded && (
-                  <Button 
-                    variant="ghost" 
-                    size="icon" 
-                    className="rounded-full h-8 w-8 hover:bg-slate-200 ml-1"
-                    onClick={(e) => {
-                      e.stopPropagation();
-                      setSelectedSale(null);
-                      setIsPanelExpanded(false);
-                    }}
-                  >
-                    <X className="w-5 h-5" />
-                  </Button>
-                )}
-              </div>
-            </div>
-
-            {/* Expanded Content */}
-            <div className={cn(
-              "px-6 pb-8 max-h-[70vh] overflow-y-auto",
-              !isPanelExpanded && "hidden"
-            )}>
-              <div className="grid md:grid-cols-2 gap-8 pt-4">
-                {/* Left: Item List */}
-                <div>
-                  <h3 className="text-xs font-bold text-slate-400 uppercase tracking-wider mb-4 flex items-center gap-2">
-                    <Package className="w-4 h-4" />
-                    Item Breakdown
-                  </h3>
-                  <div className="space-y-3">
-                    {selectedSale.items?.map((item) => (
-                      <div key={item.id} className="flex items-center justify-between p-3 bg-white border border-slate-100 rounded-xl shadow-sm">
-                        <div className="flex items-center gap-3">
-                          <div className="w-8 h-8 rounded-lg bg-slate-50 flex items-center justify-center text-xs font-bold text-slate-400">
-                            {item.quantity}x
-                          </div>
-                          <div>
-                            <div className="font-bold text-[#0F172A]">{item.name}</div>
-                            <div className="text-xs text-slate-500">₱{item.price.toFixed(2)} each</div>
-                          </div>
-                        </div>
-                        <div className="font-bold text-[#0F172A]">₱{(item.quantity * item.price).toFixed(2)}</div>
-                      </div>
-                    ))}
-                  </div>
-                </div>
-
-                {/* Right: Payment Summary */}
-                <div className="space-y-6">
-                  <div>
-                    <h3 className="text-xs font-bold text-slate-400 uppercase tracking-wider mb-4">Summary</h3>
-                    <div className="bg-slate-50 rounded-2xl p-6 space-y-4">
-                      <div className="flex justify-between text-slate-600">
-                        <span>Payment Method</span>
-                        <span className="font-bold">{selectedSale.paymentMethod.replace("_", " ")}</span>
-                      </div>
-                      <div className="flex justify-between text-slate-600">
-                        <span>Status</span>
-                        <Badge className="bg-emerald-100 text-emerald-700 hover:bg-emerald-100 border-none">
-                          {selectedSale.status}
-                        </Badge>
-                      </div>
-                      <div className="flex justify-between text-slate-600">
-                        <span>Provider Ref</span>
-                        <span className="font-mono text-xs">{selectedSale.providerRef || "N/A"}</span>
-                      </div>
-                      <div className="border-t border-slate-200 pt-4 flex justify-between items-end">
-                        <span className="text-sm font-medium text-slate-500">Total Amount</span>
-                        <span className="text-3xl font-black text-[#0F172A]">₱{selectedSale.total.toFixed(2)}</span>
-                      </div>
-                    </div>
-                  </div>
-                  
-                  <div className="flex gap-3">
-                    <Button variant="outline" className="flex-1 h-12 rounded-xl gap-2 border-slate-200">
-                      <Download className="w-4 h-4" />
-                      PDF Receipt
-                    </Button>
-                    <Button className="flex-1 h-12 rounded-xl gap-2 bg-[#2563EB] hover:bg-[#1D4ED8]">
-                      <Receipt className="w-4 h-4" />
-                      Print Thermal
-                    </Button>
-                  </div>
-                </div>
-              </div>
-            </div>
-          </motion.div>
-        )}
-      </AnimatePresence>
+                ))
+              )}
+            </tbody>
+          </table>
+        </div>
+      </main>
     </div>
   );
 }

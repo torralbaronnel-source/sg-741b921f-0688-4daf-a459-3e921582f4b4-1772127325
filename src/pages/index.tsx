@@ -1,101 +1,238 @@
-import React from "react";
+import React, { useState, useEffect, useMemo } from "react";
 import Link from "next/link";
 import { SEO } from "@/components/SEO";
 import { 
-  LayoutDashboard, 
-  ShoppingCart, 
-  Package, 
-  History, 
-  Settings, 
   TrendingUp, 
-  AlertCircle,
-  ArrowUpRight,
-  Plus
+  Package, 
+  ShoppingCart, 
+  Users, 
+  AlertTriangle,
+  ArrowRight,
+  Clock,
+  LayoutDashboard
 } from "lucide-react";
-import { motion } from "framer-motion";
+import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { Badge } from "@/components/ui/badge";
+import { Progress } from "@/components/ui/progress";
+import { Sale, Product } from "@/types/pos";
 
 export default function Dashboard() {
-  const stats = [
-    { label: "Today's Sales", value: "₱12,450.00", trend: "+12%", icon: TrendingUp, color: "text-blue-600" },
-    { label: "Orders", value: "48", trend: "+5", icon: ShoppingCart, color: "text-purple-600" },
-    { label: "Low Stock", value: "3", trend: "Alert", icon: AlertCircle, color: "text-orange-500" },
-  ];
+  const [sales, setSales] = useState<Sale[]>([]);
+  const [products, setProducts] = useState<Product[]>([]);
+  const [isLoaded, setIsLoaded] = useState(false);
 
-  const quickActions = [
-    { name: "New Sale", href: "/pos", icon: Plus, color: "bg-blue-600" },
-    { name: "Inventory", href: "/inventory", icon: Package, color: "bg-slate-800" },
-    { name: "Reports", href: "/transactions", icon: History, color: "bg-slate-800" },
-  ];
+  useEffect(() => {
+    const savedSales = localStorage.getItem("pocketpos_sales");
+    const savedProducts = localStorage.getItem("pocketpos_products");
+    if (savedSales) setSales(JSON.parse(savedSales));
+    if (savedProducts) setProducts(JSON.parse(savedProducts));
+    setIsLoaded(true);
+  }, []);
+
+  const stats = useMemo(() => {
+    const today = new Date().toLocaleDateString();
+    const todaySales = sales.filter(s => new Date(s.timestamp).toLocaleDateString() === today);
+    
+    const grossTotal = todaySales.reduce((sum, s) => sum + s.total, 0);
+    const netTotal = grossTotal / 1.12;
+    const vatTotal = grossTotal - netTotal;
+    
+    const lowStock = products.filter(p => p.stock <= 5).length;
+    
+    // Hourly Breakdown
+    const hourlyData: Record<number, number> = {};
+    todaySales.forEach(s => {
+      const hour = new Date(s.timestamp).getHours();
+      hourlyData[hour] = (hourlyData[hour] || 0) + s.total;
+    });
+
+    return {
+      grossTotal,
+      netTotal,
+      vatTotal,
+      lowStock,
+      orderCount: todaySales.length,
+      hourlyData
+    };
+  }, [sales, products]);
+
+  if (!isLoaded) return null;
 
   return (
-    <div className="min-h-screen bg-[#F8FAFC] pb-24">
+    <div className="min-h-screen bg-[#F8FAFC] pb-24 font-sans">
       <SEO title="Dashboard | PocketPOS PH" />
 
       {/* Header */}
-      <header className="px-6 pt-8 pb-4">
-        <div className="flex justify-between items-end">
-          <div>
-            <h1 className="text-3xl font-bold text-slate-900 tracking-tight">PocketPOS</h1>
-            <p className="text-slate-500 font-medium">Brew & Bites Cafe • Feb 26</p>
-          </div>
-          <Link href="/settings">
-            <div className="w-10 h-10 rounded-full bg-white shadow-sm border border-slate-200 flex items-center justify-center tap-active">
-              <Settings className="w-5 h-5 text-slate-600" />
+      <header className="bg-white border-b border-slate-200 sticky top-0 z-30 px-6 py-4">
+        <div className="max-w-7xl mx-auto flex justify-between items-center">
+          <div className="flex items-center gap-3">
+            <div className="bg-blue-600 p-2 rounded-lg">
+              <LayoutDashboard className="w-6 h-6 text-white" />
             </div>
+            <div>
+              <h1 className="text-xl font-black text-slate-900 tracking-tight">POCKETPOS PH</h1>
+              <p className="text-xs font-bold text-slate-400 uppercase tracking-widest">Store Dashboard</p>
+            </div>
+          </div>
+          <Link href="/pos">
+            <button className="bg-blue-600 hover:bg-blue-700 text-white font-black px-6 py-2 rounded-lg text-sm transition-all shadow-lg shadow-blue-200 flex items-center gap-2">
+              OPEN TERMINAL <ArrowRight className="w-4 h-4" />
+            </button>
           </Link>
         </div>
       </header>
 
-      <main className="px-4 space-y-6 mt-4">
-        {/* Stats Grid */}
-        <div className="grid grid-cols-1 gap-4">
-          {stats.map((stat, i) => (
-            <motion.div 
-              key={stat.label}
-              initial={{ opacity: 0, y: 20 }}
-              animate={{ opacity: 1, y: 0 }}
-              transition={{ delay: i * 0.1 }}
-              className="glass-card p-5 rounded-3xl"
-            >
-              <div className="flex justify-between items-start">
-                <div className={`p-2 rounded-2xl bg-slate-50 ${stat.color}`}>
-                  <stat.icon className="w-5 h-5" />
-                </div>
-                <div className="flex items-center text-xs font-bold text-green-600 bg-green-50 px-2 py-1 rounded-full">
-                  {stat.trend} <ArrowUpRight className="w-3 h-3 ml-0.5" />
-                </div>
-              </div>
-              <div className="mt-4">
-                <p className="text-sm font-medium text-slate-500">{stat.label}</p>
-                <p className="text-2xl font-bold text-slate-900 mt-1">{stat.value}</p>
-              </div>
-            </motion.div>
-          ))}
+      <main className="max-w-7xl mx-auto px-6 py-8 space-y-8">
+        {/* Real-time Sales Stats */}
+        <div className="grid grid-cols-1 md:grid-cols-4 gap-6">
+          <Card className="border-none shadow-sm overflow-hidden">
+            <div className="h-1 bg-blue-600" />
+            <CardHeader className="pb-2">
+              <CardTitle className="text-xs font-black text-slate-400 uppercase tracking-widest">Gross Sales (Today)</CardTitle>
+            </CardHeader>
+            <CardContent>
+              <div className="text-3xl font-black text-slate-900">₱{stats.grossTotal.toLocaleString(undefined, { minimumFractionDigits: 2 })}</div>
+              <p className="text-[10px] font-bold text-blue-600 mt-1 uppercase">{stats.orderCount} TRANSACTIONS</p>
+            </CardContent>
+          </Card>
+
+          <Card className="border-none shadow-sm overflow-hidden">
+            <div className="h-1 bg-emerald-500" />
+            <CardHeader className="pb-2">
+              <CardTitle className="text-xs font-black text-slate-400 uppercase tracking-widest">Net Sales (Excl. VAT)</CardTitle>
+            </CardHeader>
+            <CardContent>
+              <div className="text-3xl font-black text-slate-900">₱{stats.netTotal.toLocaleString(undefined, { minimumFractionDigits: 2 })}</div>
+              <p className="text-[10px] font-bold text-emerald-600 mt-1 uppercase">12% VAT DEDUCTED</p>
+            </CardContent>
+          </Card>
+
+          <Card className="border-none shadow-sm overflow-hidden">
+            <div className="h-1 bg-slate-800" />
+            <CardHeader className="pb-2">
+              <CardTitle className="text-xs font-black text-slate-400 uppercase tracking-widest">VAT Collected</CardTitle>
+            </CardHeader>
+            <CardContent>
+              <div className="text-3xl font-black text-slate-900">₱{stats.vatTotal.toLocaleString(undefined, { minimumFractionDigits: 2 })}</div>
+              <p className="text-[10px] font-bold text-slate-400 mt-1 uppercase">REVERSE CALCULATED</p>
+            </CardContent>
+          </Card>
+
+          <Card className="border-none shadow-sm overflow-hidden">
+            <div className="h-1 bg-orange-500" />
+            <CardHeader className="pb-2">
+              <CardTitle className="text-xs font-black text-slate-400 uppercase tracking-widest">Inventory Alerts</CardTitle>
+            </CardHeader>
+            <CardContent>
+              <div className="text-3xl font-black text-slate-900">{stats.lowStock} Items</div>
+              <p className="text-[10px] font-bold text-orange-600 mt-1 uppercase">BELOW THRESHOLD</p>
+            </CardContent>
+          </Card>
         </div>
 
-        {/* Quick Actions */}
-        <section>
-          <h2 className="text-lg font-bold text-slate-800 px-2 mb-4">Quick Actions</h2>
-          <div className="grid grid-cols-2 gap-4">
-            {quickActions.map((action) => (
-              <Link key={action.name} href={action.href} className="block">
-                <div className={`glass-card p-6 rounded-[2.5rem] flex flex-col items-center justify-center space-y-3 tap-active ${action.name === "New Sale" ? "ring-2 ring-blue-500/20" : ""}`}>
-                  <div className={`w-12 h-12 rounded-2xl flex items-center justify-center text-white ${action.color}`}>
-                    <action.icon className="w-6 h-6" />
+        {/* High-Density Tables */}
+        <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
+          {/* Sales Velocity */}
+          <Card className="border-none shadow-sm">
+            <CardHeader className="border-b border-slate-50">
+              <div className="flex items-center gap-2">
+                <Clock className="w-4 h-4 text-blue-600" />
+                <CardTitle className="text-sm font-black uppercase tracking-widest">Hourly Sales Velocity</CardTitle>
+              </div>
+            </CardHeader>
+            <CardContent className="p-0">
+              <div className="divide-y divide-slate-50">
+                {Object.keys(stats.hourlyData).length > 0 ? (
+                  Object.entries(stats.hourlyData)
+                    .sort((a, b) => Number(b[0]) - Number(a[0]))
+                    .map(([hour, total]) => (
+                      <div key={hour} className="flex justify-between items-center p-4">
+                        <span className="text-xs font-bold text-slate-600">
+                          {Number(hour) % 12 || 12}:00 {Number(hour) >= 12 ? 'PM' : 'AM'}
+                        </span>
+                        <div className="flex items-center gap-4">
+                          <div className="w-32 bg-slate-100 h-2 rounded-full overflow-hidden">
+                            <div 
+                              className="bg-blue-600 h-full transition-all duration-500" 
+                              style={{ width: `${(total / stats.grossTotal) * 100}%` }}
+                            />
+                          </div>
+                          <span className="text-sm font-black tabular-nums">₱{total.toLocaleString()}</span>
+                        </div>
+                      </div>
+                    ))
+                ) : (
+                  <div className="p-12 text-center text-slate-400 font-bold text-xs uppercase tracking-widest">
+                    No sales recorded today
                   </div>
-                  <span className="font-bold text-slate-900">{action.name}</span>
-                </div>
+                )}
+              </div>
+            </CardContent>
+          </Card>
+
+          {/* Quick Inventory Stock-In */}
+          <Card className="border-none shadow-sm">
+            <CardHeader className="border-b border-slate-50 flex flex-row items-center justify-between space-y-0">
+              <div className="flex items-center gap-2">
+                <Package className="w-4 h-4 text-blue-600" />
+                <CardTitle className="text-sm font-black uppercase tracking-widest">Critical Stock</CardTitle>
+              </div>
+              <Link href="/inventory">
+                <Badge variant="outline" className="text-[10px] font-black uppercase border-blue-200 text-blue-600 cursor-pointer">
+                  Manage All
+                </Badge>
               </Link>
-            ))}
-          </div>
-        </section>
+            </CardHeader>
+            <CardContent className="p-0">
+              <div className="divide-y divide-slate-50">
+                {products.filter(p => p.stock <= 10).slice(0, 6).map(product => (
+                  <div key={product.id} className="flex justify-between items-center p-4">
+                    <div className="flex items-center gap-3">
+                      <span className="text-lg">{product.emoji || '📦'}</span>
+                      <div>
+                        <div className="text-xs font-black text-slate-900 uppercase truncate max-w-[150px]">{product.name}</div>
+                        <div className="text-[10px] font-bold text-slate-400">SKU: {product.sku || 'N/A'}</div>
+                      </div>
+                    </div>
+                    <div className="text-right">
+                      <div className={`text-sm font-black ${product.stock <= 5 ? 'text-red-600' : 'text-orange-600'}`}>
+                        {product.stock} LEFT
+                      </div>
+                      <Progress value={(product.stock / 50) * 100} className="h-1 w-16 mt-1" />
+                    </div>
+                  </div>
+                ))}
+                {products.filter(p => p.stock <= 10).length === 0 && (
+                  <div className="p-12 text-center text-slate-400 font-bold text-xs uppercase tracking-widest">
+                    All stock levels healthy
+                  </div>
+                )}
+              </div>
+            </CardContent>
+          </Card>
+        </div>
       </main>
 
-      {/* Bottom Nav Blur */}
-      <nav className="fixed bottom-6 left-6 right-6 h-16 glass-card rounded-full flex items-center justify-around px-4 z-50">
-        <Link href="/" className="p-2 text-blue-600"><LayoutDashboard className="w-6 h-6" /></Link>
-        <Link href="/pos" className="p-3 bg-blue-600 text-white rounded-full -mt-10 shadow-lg shadow-blue-500/40 tap-active"><ShoppingCart className="w-6 h-6" /></Link>
-        <Link href="/inventory" className="p-2 text-slate-400"><Package className="w-6 h-6" /></Link>
+      {/* Navigation - Locked Bottom */}
+      <nav className="fixed bottom-0 left-0 right-0 bg-white border-t border-slate-200 px-6 py-3 z-50">
+        <div className="max-w-7xl mx-auto flex justify-around items-center">
+          <Link href="/" className="flex flex-col items-center gap-1 text-blue-600">
+            <LayoutDashboard className="w-5 h-5" />
+            <span className="text-[10px] font-black uppercase tracking-widest">Home</span>
+          </Link>
+          <Link href="/pos" className="flex flex-col items-center gap-1 text-slate-400 hover:text-slate-600 transition-colors">
+            <ShoppingCart className="w-5 h-5" />
+            <span className="text-[10px] font-black uppercase tracking-widest">POS</span>
+          </Link>
+          <Link href="/inventory" className="flex flex-col items-center gap-1 text-slate-400 hover:text-slate-600 transition-colors">
+            <Package className="w-5 h-5" />
+            <span className="text-[10px] font-black uppercase tracking-widest">Items</span>
+          </Link>
+          <Link href="/transactions" className="flex flex-col items-center gap-1 text-slate-400 hover:text-slate-600 transition-colors">
+            <TrendingUp className="w-5 h-5" />
+            <span className="text-[10px] font-black uppercase tracking-widest">Sales</span>
+          </Link>
+        </div>
       </nav>
     </div>
   );

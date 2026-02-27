@@ -1,55 +1,53 @@
-export interface Product {
+export type PaymentMethod = "CASH" | "QR_PH" | "MAYA_TERMINAL";
+
+export interface Category {
   id: string;
   name: string;
-  price: number;
-  originalPrice?: number;
-  discount?: number;
+  slug: string;
+}
+
+export interface Product {
+  id: string;
+  sku: string;
+  name: string;
+  price: number; // VAT inclusive
+  cost: number;  // Supplier cost
   stock: number;
+  lowStockThreshold: number;
   category: string;
   emoji?: string;
-  imageUrl?: string;
 }
 
 export interface CartItem extends Product {
   quantity: number;
 }
 
-export type PaymentMethod = 'CASH' | 'QR_PH' | 'CARD' | 'MAYA_TERMINAL';
-export type SaleStatus = 'PAID' | 'PAYMENT_PENDING' | 'CANCELLED';
-
 export interface Sale {
   id: string;
   orderNo: string;
-  total: number;
-  subtotal: number;
-  tax: number;
-  discount: number;
-  items: {
-    id: string;
-    name: string;
-    quantity: number;
-    price: number;
-  }[];
+  items: CartItem[];
+  subtotal: number; // Total / 1.12
+  tax: number;      // Total - Subtotal
+  total: number;    // Gross
   paymentMethod: PaymentMethod;
-  status: SaleStatus;
-  providerRef?: string;
   timestamp: string;
-  createdAt: string;
+  status?: "PAID" | "PENDING" | "CANCELLED";
+  providerRef?: string;
 }
 
-export type SubscriptionTier = "FREE" | "BASIC";
+export interface InventoryMovement {
+  id: string;
+  productId: string;
+  productName: string;
+  type: "STOCK_IN" | "SALE" | "WASTE" | "ADJUSTMENT";
+  quantity: number;
+  reason?: string;
+  timestamp: string;
+}
 
-export interface StoreSettings {
-  storeName: string;
-  address: string;
-  phone: string;
-  taxRate?: number;
-  currency?: string;
-  receiptFooter: string;
-  lowStockThreshold: number;
-  autoPrintReceipt: boolean;
-  enableVat: boolean;
-  subscriptionTier: SubscriptionTier;
-  monthlyTransactionCount: number;
-  storeLogo?: string;
+export interface AppSettings {
+  shopName: string;
+  shopAddress: string;
+  tin?: string;
+  categories: Category[];
 }
