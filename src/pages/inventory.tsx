@@ -12,7 +12,7 @@ import { cn } from "@/lib/utils";
 
 export default function InventoryPage() {
   const [activeTab, setActiveTab] = useState<"list" | "stock-in" | "logs">("list");
-  const [products, setProducts] = useState<Product[]>([]);
+  const [products, setProducts] = useState<Product[]>(MOCK_PRODUCTS);
   const [movements, setMovements] = useState<InventoryMovement[]>([]);
   const [settings, setSettings] = useState<AppSettings>(INITIAL_SETTINGS);
   const [searchTerm, setSearchTerm] = useState("");

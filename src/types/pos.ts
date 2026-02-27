@@ -8,14 +8,16 @@ export interface Category {
 
 export interface Product {
   id: string;
-  sku: string;
   name: string;
-  price: number; // VAT inclusive
-  cost: number;  // Supplier cost
-  stock: number;
-  lowStockThreshold: number;
+  price: number;
+  cost?: number;
   category: string;
+  stock: number;
+  image?: string;
   emoji?: string;
+  sku?: string;
+  lowStockThreshold?: number;
+  hotkey?: string; // e.g., "1", "2" for quick add
 }
 
 export interface CartItem extends Product {
@@ -26,9 +28,10 @@ export interface Sale {
   id: string;
   orderNo: string;
   items: CartItem[];
-  subtotal: number; // Total / 1.12
-  tax: number;      // Total - Subtotal
-  total: number;    // Gross
+  subtotal: number;
+  tax: number;
+  total: number;
+  totalDue: number; // For terminal compatibility
   paymentMethod: PaymentMethod;
   timestamp: string;
   status?: "PAID" | "PENDING" | "CANCELLED";

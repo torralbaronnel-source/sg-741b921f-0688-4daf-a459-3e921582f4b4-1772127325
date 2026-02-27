@@ -8,10 +8,14 @@ export const DEFAULT_CATEGORIES: Category[] = [
 ];
 
 export const INITIAL_SETTINGS: AppSettings = {
-  shopName: "POCKET POS PH",
-  shopAddress: "123 BGC St., Taguig City, Philippines",
-  tin: "000-123-456-000",
-  categories: DEFAULT_CATEGORIES,
+  shopName: "POCKETPOS PH",
+  shopAddress: "Manila, Philippines",
+  tin: "123-456-789-000",
+  categories: [
+    { id: "cat-1", name: "COFFEE", slug: "COFFEE" },
+    { id: "cat-2", name: "PASTRY", slug: "PASTRY" },
+    { id: "cat-3", name: "MERCH", slug: "MERCH" },
+  ],
 };
 
 export const MOCK_PRODUCTS: Product[] = [

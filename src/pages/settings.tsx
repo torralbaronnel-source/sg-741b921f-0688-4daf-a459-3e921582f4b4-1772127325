@@ -11,7 +11,7 @@ import { toast } from "@/hooks/use-toast";
 
 export default function SettingsPage() {
   const [settings, setSettings] = useState<AppSettings>(INITIAL_SETTINGS);
-  const [newCategory, setNewCategory] = useState("");
+  const [newCategoryName, setNewCategoryName] = useState("");
 
   useEffect(() => {
     const saved = localStorage.getItem("pos_settings");
@@ -27,19 +27,19 @@ export default function SettingsPage() {
   };
 
   const addCategory = () => {
-    if (!newCategory.trim()) return;
+    if (!newCategoryName.trim()) return;
     const cat: Category = {
       id: Date.now().toString(),
-      name: newCategory,
-      slug: newCategory.toLowerCase().replace(/\s+/g, '-')
+      name: newCategoryName,
+      slug: newCategoryName.toLowerCase().replace(/\s+/g, '-')
     };
-    const updated = { ...settings, categories: [...settings.categories, cat] };
+    const updated = { ...settings, categories: [...(settings?.categories || []), cat] };
     setSettings(updated);
-    setNewCategory("");
+    setNewCategoryName("");
   };
 
   const removeCategory = (id: string) => {
-    const updated = { ...settings, categories: settings.categories.filter(c => c.id !== id) };
+    const updated = { ...settings, categories: (settings?.categories || []).filter(c => c.id !== id) };
     setSettings(updated);
   };
 
@@ -119,8 +119,8 @@ export default function SettingsPage() {
               <Input 
                 placeholder="Enter category name (e.g. Signature Coffee)" 
                 className="h-11 border-slate-200"
-                value={newCategory}
-                onChange={(e) => setNewCategory(e.target.value)}
+                value={newCategoryName}
+                onChange={(e) => setNewCategoryName(e.target.value)}
                 onKeyDown={(e) => e.key === "Enter" && addCategory()}
               />
               <Button onClick={addCategory} className="bg-[#0F172A] hover:bg-slate-800 h-11 px-6 shrink-0">
@@ -129,8 +129,8 @@ export default function SettingsPage() {
             </div>
 
             <div className="grid grid-cols-1 md:grid-cols-2 gap-2 pt-2">
-              {settings.categories.map(cat => (
-                <div key={cat.id} className="flex items-center justify-between p-3 rounded-lg border border-slate-100 bg-slate-50 group hover:border-slate-200 transition-all">
+              {(settings?.categories || []).map((cat) => (
+                <div key={cat.id} className="flex items-center justify-between p-3 border rounded-lg bg-white">
                   <span className="font-bold text-slate-700">{cat.name}</span>
                   <Button 
                     variant="ghost" 
