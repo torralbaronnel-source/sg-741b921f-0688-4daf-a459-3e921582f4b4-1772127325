@@ -12,7 +12,8 @@ import {
   CheckCircle2, 
   X,
   ArrowLeft,
-  Image as ImageIcon
+  Image as ImageIcon,
+  Receipt
 } from "lucide-react";
 import { 
   Dialog, 
@@ -22,41 +23,37 @@ import {
 } from "@/components/ui/dialog";
 import { Badge } from "@/components/ui/badge";
 import { MOCK_PRODUCTS, MOCK_CATEGORIES, INITIAL_SETTINGS } from "@/lib/mock-data";
-import { Product, CartItem, Sale, PaymentMethod, AppSettings } from "@/types/pos";
+import { Product, CartItem, Sale, PaymentMethod, AppSettings, Category } from "@/types/pos";
 import { cn } from "@/lib/utils";
 import Link from "next/link";
 
 export default function POSPage() {
-  // In a real app, this would use a global state or DB. For now, we'll simulate the connection.
-  const [products, setProducts] = useState(MOCK_PRODUCTS);
+  const [products, setProducts] = useState<Product[]>([]);
+  const [categories, setCategories] = useState<Category[]>(MOCK_CATEGORIES);
   const [cart, setCart] = useState<CartItem[]>([]);
   const [searchQuery, setSearchQuery] = useState("");
   const [selectedCategoryId, setSelectedCategoryId] = useState<string>("All");
-  const [settings] = useState<AppSettings>(INITIAL_SETTINGS);
+  const [settings, setSettings] = useState<AppSettings>(INITIAL_SETTINGS);
   const [isCheckoutOpen, setIsCheckoutOpen] = useState(false);
   const [isOrderPanelOpen, setIsOrderPanelOpen] = useState(false);
   const [lastSale, setLastSale] = useState<Sale | null>(null);
-  
-  const [activeQtyItem, setActiveQtyItem] = useState<CartItem | null>(null);
   const searchInputRef = useRef<HTMLInputElement>(null);
 
   const totalDue = useMemo(() => cart.reduce((acc, item) => acc + (item.price * item.quantity), 0), [cart]);
-  const subtotal = useMemo(() => totalDue / 1.12, [totalDue]);
+  const subtotal = useMemo(() => totalDue / (1 + (settings.vatRate / 100)), [totalDue, settings.vatRate]);
   const tax = useMemo(() => totalDue - subtotal, [totalDue, subtotal]);
 
+  // Load Data Layer
   useEffect(() => {
-    const handleKeyDown = (e: KeyboardEvent) => {
-      if (document.activeElement?.tagName === "INPUT") {
-        if (e.key === "Escape") searchInputRef.current?.blur();
-        return;
-      }
-      if (e.key === "/" ) {
-        e.preventDefault();
-        searchInputRef.current?.focus();
-      }
-    };
-    window.addEventListener("keydown", handleKeyDown);
-    return () => window.removeEventListener("keydown", handleKeyDown);
+    const savedProducts = localStorage.getItem("pocketpos_products");
+    const savedCategories = localStorage.getItem("pocketpos_categories");
+    const savedSettings = localStorage.getItem("pocketpos_settings");
+    
+    if (savedProducts) setProducts(JSON.parse(savedProducts));
+    else setProducts(MOCK_PRODUCTS);
+    
+    if (savedCategories) setCategories(JSON.parse(savedCategories));
+    if (savedSettings) setSettings(JSON.parse(savedSettings));
   }, []);
 
   const filteredProducts = useMemo(() => {
@@ -90,30 +87,32 @@ export default function POSPage() {
     }).filter(item => item.quantity > 0));
   };
 
-  const handleCheckout = (paymentMethod: string) => {
-    // 1. Decrement stock
+  const handleCheckout = (paymentMethod: PaymentMethod) => {
     const updatedProducts = products.map(p => {
       const cartItem = cart.find(item => item.id === p.id);
-      if (cartItem) {
-        return { ...p, stock: Math.max(0, p.stock - cartItem.quantity) };
-      }
+      if (cartItem) return { ...p, stock: Math.max(0, p.stock - cartItem.quantity) };
       return p;
     });
+    
     setProducts(updatedProducts);
+    localStorage.setItem("pocketpos_products", JSON.stringify(updatedProducts));
 
-    // 2. Process sale...
     const sale: Sale = {
       id: `sale-${Date.now()}`,
-      orderNo: `ORD-${Math.floor(1000 + Math.random() * 9000)}`,
+      orderNo: `OR-${Math.floor(100000 + Math.random() * 900000)}`,
       items: [...cart],
       totalDue,
       subtotal,
       tax,
       total: totalDue,
-      paymentMethod: paymentMethod as PaymentMethod,
+      paymentMethod,
       timestamp: new Date().toISOString(),
       status: "PAID"
     };
+
+    const existingSales = JSON.parse(localStorage.getItem("pocketpos_sales") || "[]");
+    localStorage.setItem("pocketpos_sales", JSON.stringify([sale, ...existingSales]));
+    
     setLastSale(sale);
     setCart([]);
     setIsCheckoutOpen(false);
@@ -168,15 +167,15 @@ export default function POSPage() {
             >
               All Items
             </Button>
-            {MOCK_CATEGORIES.map(cat => (
+            {categories.map(cat => (
               <Button 
                 key={cat.id}
                 variant={selectedCategoryId === cat.id ? "default" : "outline"}
                 size="sm"
                 className="rounded-full shrink-0 h-9 px-5 gap-2"
                 onClick={() => setSelectedCategoryId(cat.id)}
-                style={selectedCategoryId !== cat.id ? { borderColor: cat.color + '40', color: cat.color } : { backgroundColor: cat.color }}
               >
+                <div className="w-2 h-2 rounded-full" style={{ backgroundColor: cat.color }} />
                 {cat.name}
               </Button>
             ))}
@@ -186,35 +185,29 @@ export default function POSPage() {
             <div className="grid grid-cols-2 xs:grid-cols-3 sm:grid-cols-4 md:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5 2xl:grid-cols-6 gap-4">
               {filteredProducts.map(product => {
                 const isLow = product.stock <= (product.minStock || 5);
-                const category = MOCK_CATEGORIES.find(c => c.id === product.categoryId);
+                const category = categories.find(c => c.id === product.categoryId);
                 return (
                   <div
                     key={product.id}
                     onClick={() => addToCart(product)}
                     className={cn(
                       "group bg-white rounded-2xl border border-slate-200 p-3 transition-all hover:shadow-lg hover:border-blue-200 cursor-pointer active:scale-95 flex flex-col relative overflow-hidden",
-                      category?.color === "blue" && "border-l-4 border-l-blue-500",
-                      category?.color === "green" && "border-l-4 border-l-green-500",
-                      category?.color === "amber" && "border-l-4 border-l-amber-500",
-                      category?.color === "purple" && "border-l-4 border-l-purple-500",
-                      category?.color === "rose" && "border-l-4 border-l-rose-500",
-                      category?.color === "indigo" && "border-l-4 border-l-indigo-500",
-                      category?.color === "emerald" && "border-l-4 border-l-emerald-500",
-                      category?.color === "cyan" && "border-l-4 border-l-cyan-500"
+                      product.stock <= 0 && "opacity-50 grayscale pointer-events-none"
                     )}
                   >
-                    <div className="aspect-square bg-slate-50 flex items-center justify-center overflow-hidden">
+                    <div className="absolute top-0 left-0 w-1 h-full" style={{ backgroundColor: category?.color }} />
+                    <div className="aspect-square bg-slate-50 flex items-center justify-center overflow-hidden rounded-xl">
                       {product.image ? (
                         <img src={product.image} alt="" className="w-full h-full object-cover group-hover:scale-110 transition-transform duration-500" />
                       ) : (
                         <ImageIcon className="w-8 h-8 text-slate-200" />
                       )}
                     </div>
-                    <div className="p-3">
+                    <div className="p-2">
                       <div className="font-bold text-xs text-slate-900 line-clamp-1">{product.name}</div>
-                      <div className="flex items-center justify-between mt-2">
-                        <span className="text-blue-600 font-black text-sm">₱{product.price}</span>
-                        <Badge variant={isLow ? "destructive" : "secondary"} className="h-5 px-1.5 text-[10px] font-bold">
+                      <div className="flex items-center justify-between mt-1">
+                        <span className="text-blue-600 font-black text-xs">₱{product.price}</span>
+                        <Badge variant={isLow ? "destructive" : "secondary"} className="h-4 px-1 text-[9px] font-bold">
                           {product.stock}
                         </Badge>
                       </div>
@@ -244,37 +237,37 @@ export default function POSPage() {
           <div className="flex-1 overflow-y-auto p-4 space-y-3 custom-scrollbar">
             {cart.map(item => (
               <div key={item.id} className="flex items-center gap-3 bg-slate-50 p-3 rounded-2xl border border-slate-100">
-                <div className="h-12 w-12 bg-white rounded-xl overflow-hidden shadow-sm flex-shrink-0">
-                  {item.image ? <img src={item.image} className="w-full h-full object-cover" /> : <ImageIcon className="w-5 h-5 m-auto" />}
+                <div className="h-10 w-10 bg-white rounded-lg overflow-hidden flex-shrink-0 shadow-sm">
+                  {item.image ? <img src={item.image} className="w-full h-full object-cover" /> : <ImageIcon className="w-4 h-4 m-auto" />}
                 </div>
                 <div className="flex-1 min-w-0">
-                  <div className="font-bold text-sm text-slate-900 truncate">{item.name}</div>
-                  <div className="text-blue-600 font-black text-xs">₱{item.price}</div>
+                  <div className="font-bold text-xs text-slate-900 truncate">{item.name}</div>
+                  <div className="text-blue-600 font-black text-[10px]">₱{item.price}</div>
                 </div>
-                <div className="flex items-center gap-2 bg-white border rounded-xl p-1 shadow-sm">
-                  <Button variant="ghost" size="icon" className="h-8 w-8 rounded-lg" onClick={() => updateQuantity(item.id, -1)}><Minus className="h-3 w-3" /></Button>
-                  <span className="font-black text-sm min-w-[20px] text-center">{item.quantity}</span>
-                  <Button variant="ghost" size="icon" className="h-8 w-8 rounded-lg" onClick={() => updateQuantity(item.id, 1)}><Plus className="h-3 w-3" /></Button>
+                <div className="flex items-center gap-2 bg-white border rounded-xl p-1">
+                  <Button variant="ghost" size="icon" className="h-6 w-6 rounded-lg" onClick={() => updateQuantity(item.id, -1)}><Minus className="h-2 w-2" /></Button>
+                  <span className="font-black text-xs min-w-[15px] text-center">{item.quantity}</span>
+                  <Button variant="ghost" size="icon" className="h-6 w-6 rounded-lg" onClick={() => updateQuantity(item.id, 1)}><Plus className="h-2 w-2" /></Button>
                 </div>
               </div>
             ))}
           </div>
 
-          <div className="p-4 border-t bg-slate-50/50 space-y-4">
-            <div className="space-y-2 text-xs font-bold text-slate-500 uppercase">
-              <div className="flex justify-between"><span>Subtotal</span><span>₱{subtotal.toLocaleString()}</span></div>
-              <div className="flex justify-between"><span>VAT (12%)</span><span>₱{tax.toLocaleString()}</span></div>
-              <div className="flex justify-between pt-3 border-t text-lg font-black text-slate-900">
+          <div className="p-4 border-t bg-slate-50/50 space-y-3">
+            <div className="space-y-1.5 text-[10px] font-bold text-slate-500 uppercase">
+              <div className="flex justify-between"><span>Subtotal</span><span>₱{subtotal.toFixed(2)}</span></div>
+              <div className="flex justify-between"><span>VAT (12%)</span><span>₱{tax.toFixed(2)}</span></div>
+              <div className="flex justify-between pt-2 border-t text-base font-black text-slate-900">
                 <span>TOTAL</span>
-                <span className="text-blue-600">₱{totalDue.toLocaleString()}</span>
+                <span className="text-blue-600">₱{totalDue.toFixed(2)}</span>
               </div>
             </div>
             <Button 
-              className="w-full h-14 rounded-2xl bg-[#0F172A] hover:bg-slate-800 text-white font-black text-lg shadow-xl shadow-slate-200 disabled:opacity-50"
+              className="w-full h-12 rounded-xl bg-[#0F172A] hover:bg-slate-800 text-white font-black text-base shadow-xl disabled:opacity-50"
               disabled={cart.length === 0}
               onClick={() => setIsCheckoutOpen(true)}
             >
-              CHECKOUT
+              PAY NOW
             </Button>
           </div>
         </aside>
@@ -282,17 +275,17 @@ export default function POSPage() {
 
       <Dialog open={isCheckoutOpen} onOpenChange={setIsCheckoutOpen}>
         <DialogContent className="sm:max-w-[400px] p-6 rounded-3xl">
-          <DialogHeader><DialogTitle className="text-xl font-black uppercase tracking-widest">Select Payment</DialogTitle></DialogHeader>
+          <DialogHeader><DialogTitle className="text-xl font-black uppercase tracking-widest text-center">Payment Method</DialogTitle></DialogHeader>
           <div className="grid grid-cols-1 gap-3 py-4">
-            <Button variant="outline" className="h-16 justify-between px-6 text-lg font-black border-2 rounded-2xl hover:border-blue-600 hover:text-blue-600 transition-all" onClick={() => handleCheckout("CASH")}>
+            <Button variant="outline" className="h-14 justify-between px-6 text-base font-black border-2 rounded-xl hover:border-blue-600 hover:text-blue-600 transition-all" onClick={() => handleCheckout("CASH")}>
               <div className="flex items-center gap-4"><span>💵</span> CASH</div>
               <ChevronRight className="w-5 h-5 opacity-30" />
             </Button>
-            <Button variant="outline" className="h-16 justify-between px-6 text-lg font-black border-2 rounded-2xl hover:border-blue-600 hover:text-blue-600 transition-all" onClick={() => handleCheckout("QR_PH")}>
+            <Button variant="outline" className="h-14 justify-between px-6 text-base font-black border-2 rounded-xl hover:border-blue-600 hover:text-blue-600 transition-all" onClick={() => handleCheckout("QR_PH")}>
               <div className="flex items-center gap-4"><span>📱</span> QR PH</div>
               <ChevronRight className="w-5 h-5 opacity-30" />
             </Button>
-            <Button variant="outline" className="h-16 justify-between px-6 text-lg font-black border-2 rounded-2xl hover:border-blue-600 hover:text-blue-600 transition-all" onClick={() => handleCheckout("MAYA_TERMINAL")}>
+            <Button variant="outline" className="h-14 justify-between px-6 text-base font-black border-2 rounded-xl hover:border-blue-600 hover:text-blue-600 transition-all" onClick={() => handleCheckout("MAYA_TERMINAL")}>
               <div className="flex items-center gap-4"><span>💳</span> MAYA CARD</div>
               <ChevronRight className="w-5 h-5 opacity-30" />
             </Button>
@@ -301,11 +294,111 @@ export default function POSPage() {
       </Dialog>
 
       <Dialog open={!!lastSale} onOpenChange={() => setLastSale(null)}>
-        <DialogContent className="sm:max-w-[320px] p-8 text-center rounded-3xl">
-          <CheckCircle2 className="w-20 h-20 text-green-500 mx-auto mb-4" />
-          <h2 className="text-2xl font-black mb-1 uppercase tracking-tight">Success</h2>
-          <p className="text-slate-500 font-bold text-sm mb-6">{lastSale?.orderNo}</p>
-          <Button className="w-full h-12 font-black rounded-xl bg-slate-900" onClick={() => setLastSale(null)}>NEW ORDER</Button>
+        <DialogContent className="sm:max-w-[400px] p-0 overflow-hidden rounded-3xl border-none shadow-2xl">
+          <div className="bg-white p-6 md:p-8 max-h-[85vh] overflow-y-auto custom-scrollbar">
+            {lastSale && (
+              <div className="receipt-container bg-slate-50 p-6 rounded-xl border border-slate-200 font-mono shadow-inner">
+                {/* Header */}
+                <div className="text-center space-y-1 mb-6">
+                  <h3 className="font-black text-base uppercase tracking-tight">{settings.shopName}</h3>
+                  <p className="text-[9px] text-slate-500 uppercase leading-tight">{settings.address}</p>
+                  <div className="flex justify-center gap-4 text-[9px] text-slate-500 mt-1">
+                    <span>TIN: {settings.tin}</span>
+                    <span>TEL: {settings.phone}</span>
+                  </div>
+                  <div className="border-y border-dashed border-slate-300 py-1 my-3">
+                    <p className="text-[10px] font-black uppercase">Official Receipt</p>
+                  </div>
+                </div>
+
+                {/* Meta */}
+                <div className="space-y-0.5 mb-4 text-[9px] font-bold">
+                  <div className="flex justify-between">
+                    <span>RECEIPT NO:</span>
+                    <span>{lastSale.orderNo}</span>
+                  </div>
+                  <div className="flex justify-between">
+                    <span>DATE:</span>
+                    <span>{new Date(lastSale.timestamp).toLocaleDateString()}</span>
+                  </div>
+                  <div className="flex justify-between">
+                    <span>TIME:</span>
+                    <span>{new Date(lastSale.timestamp).toLocaleTimeString()}</span>
+                  </div>
+                  <div className="flex justify-between">
+                    <span>CASHIER:</span>
+                    <span>ADMIN</span>
+                  </div>
+                </div>
+
+                {/* Items */}
+                <div className="space-y-1.5 mb-6">
+                  <div className="flex justify-between text-[9px] font-black border-b border-dashed border-slate-300 pb-1 uppercase">
+                    <span className="w-6">QTY</span>
+                    <span className="flex-1 px-2">ITEM</span>
+                    <span className="w-16 text-right">TOTAL</span>
+                  </div>
+                  {lastSale.items.map((item, idx) => (
+                    <div key={idx} className="flex justify-between text-[9px] leading-tight font-medium">
+                      <span className="w-6">{item.quantity}</span>
+                      <span className="flex-1 px-2 truncate">{item.name}</span>
+                      <span className="w-16 text-right">₱{(item.price * item.quantity).toFixed(2)}</span>
+                    </div>
+                  ))}
+                </div>
+
+                {/* Summary */}
+                <div className="border-t border-dashed border-slate-300 pt-3 space-y-1">
+                  {settings.showVat && (
+                    <>
+                      <div className="flex justify-between text-[9px] font-bold">
+                        <span className="text-slate-500">VATABLE SALES</span>
+                        <span>₱{lastSale.subtotal.toFixed(2)}</span>
+                      </div>
+                      <div className="flex justify-between text-[9px] font-bold">
+                        <span className="text-slate-500">VAT AMOUNT (12%)</span>
+                        <span>₱{lastSale.tax.toFixed(2)}</span>
+                      </div>
+                    </>
+                  )}
+                  <div className="flex justify-between text-sm font-black pt-2 text-slate-900">
+                    <span>TOTAL DUE</span>
+                    <span>₱{lastSale.total.toFixed(2)}</span>
+                  </div>
+                  <div className="flex justify-between text-[9px] font-black pt-1 border-t border-slate-200 mt-2">
+                    <span className="uppercase">{lastSale.paymentMethod}</span>
+                    <span>₱{lastSale.total.toFixed(2)}</span>
+                  </div>
+                </div>
+
+                {/* Footer */}
+                <div className="mt-8 text-center space-y-3">
+                  <p className="text-[10px] font-black uppercase tracking-widest">{settings.receiptHeader}</p>
+                  <div className="flex justify-center py-2">
+                     <div className="w-24 h-24 bg-white p-2 rounded-lg border border-slate-200 shadow-sm flex items-center justify-center">
+                       <div className="w-full h-full bg-slate-900 rounded-[2px]" /> {/* Simulated QR */}
+                     </div>
+                  </div>
+                  <p className="text-[8px] text-slate-400 leading-relaxed whitespace-pre-line font-medium italic">
+                    {settings.receiptFooter}
+                  </p>
+                  <div className="pt-4 space-y-1">
+                    <p className="text-[7px] text-slate-300 font-bold uppercase tracking-widest">Powered by PocketPOS PH</p>
+                    <p className="text-[7px] text-slate-300 font-medium tracking-tighter">POS Terminal ID: T001-M01</p>
+                  </div>
+                </div>
+              </div>
+            )}
+            
+            <div className="mt-8 grid grid-cols-2 gap-3">
+              <Button variant="outline" className="h-12 font-black rounded-xl border-slate-200" onClick={() => window.print()}>
+                PRINT
+              </Button>
+              <Button className="h-12 font-black rounded-xl bg-blue-600 hover:bg-blue-700" onClick={() => setLastSale(null)}>
+                NEW ORDER
+              </Button>
+            </div>
+          </div>
         </DialogContent>
       </Dialog>
 
@@ -314,6 +407,20 @@ export default function POSPage() {
         .scrollbar-hide { -ms-overflow-style: none; scrollbar-width: none; }
         .custom-scrollbar::-webkit-scrollbar { width: 4px; }
         .custom-scrollbar::-webkit-scrollbar-thumb { background: #CBD5E1; border-radius: 10px; }
+        @media print {
+          body * { visibility: hidden; }
+          .receipt-container, .receipt-container * { visibility: visible; }
+          .receipt-container { 
+            position: absolute; 
+            left: 0; 
+            top: 0; 
+            width: 80mm; 
+            background: white !important;
+            padding: 0 !important;
+            border: none !important;
+            box-shadow: none !important;
+          }
+        }
       `}</style>
     </div>
   );

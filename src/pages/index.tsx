@@ -9,7 +9,9 @@ import {
   AlertTriangle,
   ArrowRight,
   Clock,
-  LayoutDashboard
+  LayoutDashboard,
+  Settings,
+  ReceiptText
 } from "lucide-react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
@@ -58,6 +60,13 @@ export default function Dashboard() {
 
   if (!isLoaded) return null;
 
+  const quickActions = [
+    { title: "Point of Sale", icon: ShoppingCart, color: "bg-blue-100 text-blue-600", href: "/pos", description: "Start a new sale" },
+    { title: "Inventory", icon: Package, color: "bg-orange-100 text-orange-600", href: "/inventory", description: "Manage products & stock" },
+    { title: "Transactions", icon: ReceiptText, color: "bg-green-100 text-green-600", href: "/transactions", description: "View sales history" },
+    { title: "Settings", icon: Settings, color: "bg-gray-100 text-gray-600", href: "/settings", description: "Shop configuration" },
+  ];
+
   return (
     <div className="min-h-screen bg-[#F8FAFC] pb-24 font-sans">
       <SEO title="Dashboard | PocketPOS PH" />
@@ -92,7 +101,7 @@ export default function Dashboard() {
             </CardHeader>
             <CardContent>
               <div className="text-3xl font-black text-slate-900">₱{stats.grossTotal.toLocaleString(undefined, { minimumFractionDigits: 2 })}</div>
-              <p className="text-[10px] font-bold text-blue-600 mt-1 uppercase">{stats.orderCount} TRANSACTIONS</p>
+              <p className="text-[10px] font-bold text-slate-400 mt-1 uppercase">{stats.orderCount} TRANSACTIONS</p>
             </CardContent>
           </Card>
 
@@ -235,6 +244,10 @@ export default function Dashboard() {
           <Link href="/transactions" className="flex flex-col items-center gap-1 text-slate-400 hover:text-slate-600 transition-colors">
             <TrendingUp className="w-5 h-5" />
             <span className="text-[10px] font-black uppercase tracking-widest">Sales</span>
+          </Link>
+          <Link href="/settings" className="flex flex-col items-center gap-1 text-slate-400 hover:text-slate-600 transition-colors">
+            <Settings className="w-5 h-5" />
+            <span className="text-[10px] font-black uppercase tracking-widest">Settings</span>
           </Link>
         </div>
       </nav>

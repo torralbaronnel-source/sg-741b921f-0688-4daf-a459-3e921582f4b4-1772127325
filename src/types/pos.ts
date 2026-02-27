@@ -49,7 +49,13 @@ export interface InventoryMovement {
 
 export interface AppSettings {
   shopName: string;
-  shopAddress: string;
-  tin?: string;
-  categories: Category[];
+  address: string;
+  phone: string;
+  tin: string;
+  receiptHeader: string;
+  receiptFooter: string;
+  showVat: boolean;
+  vatRate: number;
+  currency: string;
+  receiptType: "standard" | "complex";
 }

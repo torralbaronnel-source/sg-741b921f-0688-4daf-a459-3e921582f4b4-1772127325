@@ -1,163 +1,229 @@
 import React, { useState, useEffect } from "react";
-import { SEO } from "@/components/SEO";
-import { Button } from "@/components/ui/button";
-import { Input } from "@/components/ui/input";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
-import { ArrowLeft, Save, Plus, Trash2, Building2, MapPin, Hash, Tag, Globe, Laptop } from "lucide-react";
+import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
+import { Button } from "@/components/ui/button";
+import { Textarea } from "@/components/ui/textarea";
+import { Switch } from "@/components/ui/switch";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import { ArrowLeft, Save, Building2, Receipt, Percent, Globe } from "lucide-react";
 import Link from "next/link";
-import { AppSettings, Category } from "@/types/pos";
+import { useToast } from "@/hooks/use-toast";
+import { AppSettings } from "@/types/pos";
 import { INITIAL_SETTINGS } from "@/lib/mock-data";
-import { toast } from "@/hooks/use-toast";
 
 export default function SettingsPage() {
   const [settings, setSettings] = useState<AppSettings>(INITIAL_SETTINGS);
-  const [newCategoryName, setNewCategoryName] = useState("");
+  const { toast } = useToast();
 
   useEffect(() => {
-    const saved = localStorage.getItem("pos_settings");
-    if (saved) setSettings(JSON.parse(saved));
+    const saved = localStorage.getItem("pocketpos_settings");
+    if (saved) {
+      setSettings(JSON.parse(saved));
+    }
   }, []);
 
   const handleSave = () => {
+    localStorage.setItem("pocketpos_settings", JSON.stringify(settings));
     toast({
       title: "Settings Saved",
-      description: "Business configuration updated successfully.",
+      description: "Business profile and receipt configuration updated.",
     });
   };
 
-  const addCategory = () => {
-    if (!newCategoryName.trim()) return;
-    const catId = `cat-${Date.now()}`;
-    const newCat: Category = {
-      id: catId,
-      name: newCategoryName,
-      color: "#2563EB"
-    };
-    setSettings(prev => ({
-      ...prev,
-      categories: [...prev.categories, newCat]
-    }));
-    setNewCategoryName("");
-  };
-
-  const removeCategory = (id: string) => {
-    const updated = { ...settings, categories: (settings?.categories || []).filter(c => c.id !== id) };
-    setSettings(updated);
-  };
-
   return (
-    <div className="min-h-screen bg-[#F8FAFC] flex flex-col font-sans">
-      <SEO title="Business Settings - PocketPOS PH" />
-      
-      {/* Header */}
-      <header className="bg-white border-b border-slate-200 h-16 flex items-center px-4 sticky top-0 z-10">
-        <Link href="/">
-          <Button variant="ghost" size="icon" className="mr-2">
-            <ArrowLeft className="w-5 h-5 text-slate-600" />
-          </Button>
-        </Link>
-        <h1 className="text-xl font-bold text-slate-900 flex-1">Settings</h1>
-        <Button className="h-9 bg-blue-600 hover:bg-blue-700" onClick={handleSave}>
-          <Save className="w-4 h-4 mr-2" /> Save Changes
-        </Button>
-      </header>
-
-      <main className="flex-1 p-4 md:p-6 max-w-4xl mx-auto w-full space-y-6">
-        {/* Business Profile */}
-        <Card className="border-slate-200 shadow-sm">
-          <CardHeader>
-            <CardTitle className="flex items-center gap-2">
-              <Building2 className="w-5 h-5 text-blue-600" /> Business Profile
-            </CardTitle>
-            <CardDescription>Update your shop details for receipts and reports.</CardDescription>
-          </CardHeader>
-          <CardContent className="space-y-4">
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-              <div className="space-y-2">
-                <label className="text-xs font-bold text-slate-500 uppercase tracking-wider flex items-center gap-1">
-                  <Laptop className="w-3 h-3" /> Shop Name
-                </label>
-                <Input 
-                  value={settings.shopName} 
-                  onChange={(e) => setSettings({...settings, shopName: e.target.value})}
-                  className="border-slate-200 focus:border-slate-400 h-11"
-                />
-              </div>
-              <div className="space-y-2">
-                <label className="text-xs font-bold text-slate-500 uppercase tracking-wider flex items-center gap-1">
-                  <Hash className="w-3 h-3" /> TIN Number
-                </label>
-                <Input 
-                  value={settings.tin} 
-                  onChange={(e) => setSettings({...settings, tin: e.target.value})}
-                  className="border-slate-200 focus:border-slate-400 h-11 font-mono"
-                  placeholder="000-000-000-000"
-                />
-              </div>
-            </div>
-            <div className="space-y-2">
-              <label className="text-xs font-bold text-slate-500 uppercase tracking-wider flex items-center gap-1">
-                <MapPin className="w-3 h-3" /> Address
-              </label>
-              <Input 
-                value={settings.shopAddress} 
-                onChange={(e) => setSettings({...settings, shopAddress: e.target.value})}
-                className="border-slate-200 focus:border-slate-400 h-11"
-              />
-            </div>
-          </CardContent>
-        </Card>
-
-        {/* Category Management */}
-        <Card className="border-slate-200 shadow-sm">
-          <CardHeader>
-            <CardTitle className="flex items-center gap-2">
-              <Tag className="w-5 h-5 text-blue-600" /> Dynamic Categories
-            </CardTitle>
-            <CardDescription>Manage the product categories available in your POS.</CardDescription>
-          </CardHeader>
-          <CardContent className="space-y-4">
-            <div className="flex gap-2">
-              <Input 
-                placeholder="Enter category name (e.g. Signature Coffee)" 
-                className="h-11 border-slate-200"
-                value={newCategoryName}
-                onChange={(e) => setNewCategoryName(e.target.value)}
-                onKeyDown={(e) => e.key === "Enter" && addCategory()}
-              />
-              <Button onClick={addCategory} className="bg-[#0F172A] hover:bg-slate-800 h-11 px-6 shrink-0">
-                <Plus className="w-4 h-4 mr-2" /> Add Category
+    <div className="min-h-screen bg-slate-50 pb-20">
+      <div className="max-w-2xl mx-auto p-4 md:p-6">
+        <div className="flex items-center justify-between mb-6">
+          <div className="flex items-center gap-3">
+            <Link href="/">
+              <Button variant="ghost" size="icon" className="rounded-full">
+                <ArrowLeft className="w-5 h-5" />
               </Button>
-            </div>
-
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-2 pt-2">
-              {(settings?.categories || []).map((cat) => (
-                <div key={cat.id} className="flex items-center justify-between p-3 border rounded-lg bg-white">
-                  <span className="font-bold text-slate-700">{cat.name}</span>
-                  <Button 
-                    variant="ghost" 
-                    size="icon" 
-                    className="h-8 w-8 text-slate-400 hover:text-red-500 hover:bg-red-50 opacity-0 group-hover:opacity-100 transition-opacity"
-                    onClick={() => removeCategory(cat.id)}
-                  >
-                    <Trash2 className="w-4 h-4" />
-                  </Button>
-                </div>
-              ))}
-            </div>
-          </CardContent>
-        </Card>
-
-        <div className="p-4 bg-blue-50 border border-blue-100 rounded-xl flex items-start gap-3">
-          <Globe className="w-5 h-5 text-blue-600 mt-0.5" />
-          <div>
-            <div className="font-bold text-blue-900">Multi-Terminal Sync</div>
-            <p className="text-blue-700 text-sm leading-relaxed">
-              These settings are synced locally. Connecting to Supabase will enable real-time synchronization across all your tablets and phones.
-            </p>
+            </Link>
+            <h1 className="text-2xl font-bold text-slate-900">Settings</h1>
           </div>
+          <Button onClick={handleSave} className="bg-blue-600 hover:bg-blue-700">
+            <Save className="w-4 h-4 mr-2" />
+            Save Changes
+          </Button>
         </div>
-      </main>
+
+        <Tabs defaultValue="profile" className="space-y-6">
+          <TabsList className="grid w-full grid-cols-2 lg:w-[400px]">
+            <TabsTrigger value="profile">Business Profile</TabsTrigger>
+            <TabsTrigger value="receipt">Receipt Config</TabsTrigger>
+          </TabsList>
+
+          <TabsContent value="profile" className="space-y-4">
+            <Card>
+              <CardHeader>
+                <div className="flex items-center gap-2">
+                  <Building2 className="w-5 h-5 text-blue-600" />
+                  <CardTitle>Shop Information</CardTitle>
+                </div>
+                <CardDescription>Configure your business identity for receipts and reports.</CardDescription>
+              </CardHeader>
+              <CardContent className="space-y-4">
+                <div className="grid gap-2">
+                  <Label htmlFor="shopName">Shop Name</Label>
+                  <Input 
+                    id="shopName" 
+                    value={settings.shopName}
+                    onChange={(e) => setSettings({ ...settings, shopName: e.target.value })}
+                  />
+                </div>
+                <div className="grid gap-2">
+                  <Label htmlFor="tin">TIN (Tax Identification Number)</Label>
+                  <Input 
+                    id="tin" 
+                    placeholder="000-000-000-000"
+                    value={settings.tin}
+                    onChange={(e) => setSettings({ ...settings, tin: e.target.value })}
+                  />
+                </div>
+                <div className="grid gap-2">
+                  <Label htmlFor="phone">Phone Number</Label>
+                  <Input 
+                    id="phone" 
+                    value={settings.phone}
+                    onChange={(e) => setSettings({ ...settings, phone: e.target.value })}
+                  />
+                </div>
+                <div className="grid gap-2">
+                  <Label htmlFor="address">Business Address</Label>
+                  <Textarea 
+                    id="address" 
+                    rows={3}
+                    value={settings.address}
+                    onChange={(e) => setSettings({ ...settings, address: e.target.value })}
+                  />
+                </div>
+              </CardContent>
+            </Card>
+
+            <Card>
+              <CardHeader>
+                <div className="flex items-center gap-2">
+                  <Globe className="w-5 h-5 text-blue-600" />
+                  <CardTitle>Regional & Currency</CardTitle>
+                </div>
+              </CardHeader>
+              <CardContent className="space-y-4">
+                <div className="grid gap-2">
+                  <Label>Currency Symbol</Label>
+                  <Select 
+                    value={settings.currency}
+                    onValueChange={(v) => setSettings({ ...settings, currency: v })}
+                  >
+                    <SelectTrigger>
+                      <SelectValue />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="PHP">₱ (PHP)</SelectItem>
+                      <SelectItem value="USD">$ (USD)</SelectItem>
+                    </SelectContent>
+                  </Select>
+                </div>
+              </CardContent>
+            </Card>
+          </TabsContent>
+
+          <TabsContent value="receipt" className="space-y-4">
+            <Card>
+              <CardHeader>
+                <div className="flex items-center gap-2">
+                  <Receipt className="w-5 h-5 text-blue-600" />
+                  <CardTitle>Receipt Style</CardTitle>
+                </div>
+                <CardDescription>Control how your physical and digital receipts are generated.</CardDescription>
+              </CardHeader>
+              <CardContent className="space-y-4">
+                <div className="grid gap-2">
+                  <Label>Layout Type</Label>
+                  <Select 
+                    value={settings.receiptType}
+                    onValueChange={(v: "standard" | "complex") => setSettings({ ...settings, receiptType: v })}
+                  >
+                    <SelectTrigger>
+                      <SelectValue />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="standard">Standard (Compact)</SelectItem>
+                      <SelectItem value="complex">Enterprise (Full BIR Style)</SelectItem>
+                    </SelectContent>
+                  </Select>
+                </div>
+
+                <div className="flex items-center justify-between py-2">
+                  <div className="space-y-0.5">
+                    <Label>Show VAT Breakdown</Label>
+                    <p className="text-xs text-slate-500">Calculate and display 12% VAT on receipts.</p>
+                  </div>
+                  <Switch 
+                    checked={settings.showVat}
+                    onCheckedChange={(v) => setSettings({ ...settings, showVat: v })}
+                  />
+                </div>
+
+                {settings.showVat && (
+                  <div className="grid gap-2">
+                    <Label htmlFor="vatRate">VAT Rate (%)</Label>
+                    <Input 
+                      id="vatRate" 
+                      type="number"
+                      value={settings.vatRate}
+                      onChange={(e) => setSettings({ ...settings, vatRate: parseFloat(e.target.value) })}
+                    />
+                  </div>
+                )}
+
+                <div className="grid gap-2 pt-2">
+                  <Label htmlFor="header">Receipt Header Message</Label>
+                  <Input 
+                    id="header" 
+                    placeholder="e.g. THANK YOU!"
+                    value={settings.receiptHeader}
+                    onChange={(e) => setSettings({ ...settings, receiptHeader: e.target.value })}
+                  />
+                </div>
+
+                <div className="grid gap-2">
+                  <Label htmlFor="footer">Receipt Footer (Legal/TOS)</Label>
+                  <Textarea 
+                    id="footer" 
+                    rows={4}
+                    placeholder="e.g. This serves as an Official Receipt..."
+                    value={settings.receiptFooter}
+                    onChange={(e) => setSettings({ ...settings, receiptFooter: e.target.value })}
+                  />
+                </div>
+              </CardContent>
+            </Card>
+          </TabsContent>
+        </Tabs>
+      </div>
+
+      {/* Mobile Bottom Navigation */}
+      <div className="fixed bottom-0 left-0 right-0 bg-white border-t border-slate-200 px-6 py-3 flex justify-between items-center z-50 md:hidden">
+        <Link href="/" className="flex flex-col items-center gap-1 text-slate-400">
+          <Building2 className="w-5 h-5" />
+          <span className="text-[10px] font-black uppercase tracking-widest">Dash</span>
+        </Link>
+        <Link href="/pos" className="flex flex-col items-center gap-1 text-slate-400">
+          <Receipt className="w-5 h-5" />
+          <span className="text-[10px] font-black uppercase tracking-widest">POS</span>
+        </Link>
+        <Link href="/inventory" className="flex flex-col items-center gap-1 text-slate-400">
+          <Building2 className="w-5 h-5" />
+          <span className="text-[10px] font-black uppercase tracking-widest">Items</span>
+        </Link>
+        <Link href="/settings" className="flex flex-col items-center gap-1 text-blue-600">
+          <Save className="w-5 h-5" />
+          <span className="text-[10px] font-black uppercase tracking-widest">Settings</span>
+        </Link>
+      </div>
     </div>
   );
 }

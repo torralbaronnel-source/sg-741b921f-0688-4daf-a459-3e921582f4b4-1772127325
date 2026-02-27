@@ -278,6 +278,19 @@ export default function InventoryPage() {
     [categories]
   );
 
+  // Persistence Layer
+  useEffect(() => {
+    const savedProducts = localStorage.getItem("pocketpos_products");
+    const savedCategories = localStorage.getItem("pocketpos_categories");
+    if (savedProducts) setProducts(JSON.parse(savedProducts));
+    if (savedCategories) setCategories(JSON.parse(savedCategories));
+  }, []);
+
+  useEffect(() => {
+    if (products.length > 0) localStorage.setItem("pocketpos_products", JSON.stringify(products));
+    if (categories.length > 0) localStorage.setItem("pocketpos_categories", JSON.stringify(categories));
+  }, [products, categories]);
+
   return (
     <div className="min-h-screen bg-[#F5F6F8] pb-20 md:pb-0">
       <SEO title="Inventory | PocketPOS PH" />

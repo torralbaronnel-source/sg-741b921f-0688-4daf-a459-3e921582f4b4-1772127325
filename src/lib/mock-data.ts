@@ -55,10 +55,16 @@ export const MOCK_MOVEMENTS: InventoryMovement[] = [
 ];
 
 export const INITIAL_SETTINGS: AppSettings = {
-  shopName: "PocketPOS Coffee",
-  shopAddress: "123 BGC, Taguig, Philippines",
-  tin: "000-123-456-789",
-  categories: MOCK_CATEGORIES
+  shopName: "PocketPOS PH Coffee",
+  address: "123 Mabini St, Metro Manila, Philippines",
+  phone: "+63 912 345 6789",
+  tin: "000-123-456-000",
+  receiptHeader: "THANK YOU FOR YOUR PATRONAGE",
+  receiptFooter: "This serves as an Official Receipt.\nBIR Permit No: 1234-567-890",
+  showVat: true,
+  vatRate: 12,
+  currency: "PHP",
+  receiptType: "complex"
 };
 
 export const MOCK_SALES: Sale[] = [];
