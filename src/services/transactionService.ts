@@ -13,6 +13,16 @@ export const transactionService = {
     return data;
   },
 
+  async getTransactionById(id: string) {
+    const { data, error } = await supabase
+      .from("transactions")
+      .select("*")
+      .eq("id", id)
+      .single();
+    if (error) throw error;
+    return data;
+  },
+
   async createTransaction(transaction: Omit<Transaction, "id" | "created_at"> & { order_no: string }) {
     const { data, error } = await supabase
       .from("transactions")

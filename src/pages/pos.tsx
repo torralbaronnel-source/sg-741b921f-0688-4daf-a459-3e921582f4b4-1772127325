@@ -23,6 +23,7 @@ import { productService } from "@/services/productService";
 import { transactionService } from "@/services/transactionService";
 import type { Product, Category, CartItem } from "@/types/pos";
 import { motion, AnimatePresence } from "framer-motion";
+import { useRouter } from "next/router";
 
 export default function POSPage() {
   const [products, setProducts] = useState<Product[]>([]);
@@ -33,6 +34,7 @@ export default function POSPage() {
   const [isCheckingOut, setIsCheckingOut] = useState(false);
   const [showCart, setShowCart] = useState(true);
   const { toast } = useToast();
+  const router = useRouter();
 
   useEffect(() => {
     loadData();
@@ -99,7 +101,10 @@ export default function POSPage() {
     setIsCheckingOut(true);
 
     try {
-      // Create a clean item list for storage
+      // Get next order number from DB
+      const { data: orderNoData } = await supabase.rpc('get_next_order_number', { p_shop_id: 'default-shop' });
+      const orderNo = orderNoData || `ORD-${Date.now().toString().slice(-6)}`;
+
       const itemsJson = cart.map(item => ({
         id: item.id,
         name: item.name,
@@ -112,17 +117,14 @@ export default function POSPage() {
         total: subtotal,
         payment_method: paymentMethod,
         items: itemsJson as any,
-        order_no: `ORD-${Date.now().toString().slice(-6)}`
+        order_no: orderNo
       };
 
       const result = await transactionService.createTransaction(transaction);
       
       if (result) {
-        toast({
-          title: "Order Completed",
-          description: `Transaction #${result.order_no} successful via ${paymentMethod}`,
-        });
         setCart([]);
+        router.push(`/receipt/${result.id}`);
       }
     } catch (error) {
       console.error("Checkout error:", error);

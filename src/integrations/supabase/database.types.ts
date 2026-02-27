@@ -148,7 +148,7 @@ export type Database = {
       [_ in never]: never
     }
     Functions: {
-      [_ in never]: never
+      get_next_order_number: { Args: { p_shop_id: string }; Returns: string }
     }
     Enums: {
       [_ in never]: never
