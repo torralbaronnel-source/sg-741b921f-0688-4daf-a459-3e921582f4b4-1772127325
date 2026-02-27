@@ -6,8 +6,6 @@ import {
   Package, 
   History, 
   ArrowLeft, 
-  TrendingDown, 
-  TrendingUp,
   Filter,
   MoreVertical,
   Edit,
@@ -17,7 +15,9 @@ import {
   X,
   ChevronRight,
   AlertTriangle,
-  Palette
+  Palette,
+  TrendingUp,
+  DollarSign
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -27,8 +27,7 @@ import {
   SheetContent, 
   SheetHeader, 
   SheetTitle, 
-  SheetDescription,
-  SheetFooter
+  SheetDescription
 } from "@/components/ui/sheet";
 import {
   DropdownMenu,
@@ -57,11 +56,11 @@ export default function InventoryPage() {
   const [isCategorySheetOpen, setIsCategorySheetOpen] = useState(false);
   const [editingCategory, setEditingCategory] = useState<Category | null>(null);
 
-  // Financial Stats
+  // Stats
   const stats = useMemo(() => {
     const totalItems = products.length;
     const inventoryValue = products.reduce((acc, p) => acc + (p.stock * p.cost), 0);
-    const lowStockItems = products.filter(p => p.stock < 20).length;
+    const lowStockItems = products.filter(p => p.stock < 10).length;
     return { totalItems, inventoryValue, lowStockItems };
   }, [products]);
 
@@ -70,22 +69,26 @@ export default function InventoryPage() {
     p.sku?.toLowerCase().includes(searchQuery.toLowerCase())
   );
 
+  const generateSKU = () => {
+    return "SKU-" + Math.random().toString(36).substr(2, 6).toUpperCase();
+  };
+
   const handleSaveProduct = (e: React.FormEvent<HTMLFormElement>) => {
     e.preventDefault();
     const formData = new FormData(e.currentTarget);
+    const catId = formData.get("categoryId") as string;
+    const catName = categories.find(c => c.id === catId)?.name || "Uncategorized";
+
     const productData: Partial<Product> = {
       name: formData.get("name") as string,
       sku: formData.get("sku") as string,
       price: Number(formData.get("price")),
       cost: Number(formData.get("cost")),
-      categoryId: formData.get("categoryId") as string,
+      categoryId: catId,
+      category: catName,
       stock: Number(formData.get("stock")),
       emoji: formData.get("emoji") as string,
     };
-
-    // Find category name
-    const cat = categories.find(c => c.id === productData.categoryId);
-    productData.category = cat ? cat.name : "Uncategorized";
 
     if (editingProduct) {
       setProducts(prev => prev.map(p => p.id === editingProduct.id ? { ...p, ...productData } as Product : p));
@@ -110,7 +113,7 @@ export default function InventoryPage() {
 
     if (editingCategory) {
       setCategories(prev => prev.map(c => c.id === editingCategory.id ? { ...c, ...categoryData } as Category : c));
-      // Update products category name if changed
+      // Update existing products with new category name if it changed
       setProducts(prev => prev.map(p => p.categoryId === editingCategory.id ? { ...p, category: categoryData.name! } : p));
     } else {
       const newCategory: Category = {
@@ -123,14 +126,8 @@ export default function InventoryPage() {
     setIsCategorySheetOpen(false);
   };
 
-  const handleDeleteCategory = (id: string) => {
-    setCategories(prev => prev.filter(c => c.id !== id));
-    // Reset products in this category
-    setProducts(prev => prev.map(p => p.categoryId === id ? { ...p, categoryId: undefined, category: "Uncategorized" } : p));
-  };
-
   return (
-    <div className="min-h-screen bg-[#F8FAFC] flex flex-col">
+    <div className="min-h-screen bg-[#F8FAFC] flex flex-col font-sans">
       {/* Header */}
       <header className="sticky top-0 z-30 bg-white border-b border-slate-200 px-4 h-16 flex items-center justify-between">
         <div className="flex items-center gap-3">
@@ -147,7 +144,7 @@ export default function InventoryPage() {
             onClick={() => setActiveTab("list")}
             className={cn(
               "flex items-center gap-2 px-4 py-1.5 rounded-lg text-sm font-medium transition-all",
-              activeTab === "list" ? "bg-white text-[#2563EB] shadow-sm" : "text-slate-600 hover:text-slate-900"
+              activeTab === "list" ? "bg-white text-[#2563EB] shadow-sm" : "text-slate-600"
             )}
           >
             <Package className="w-4 h-4" />
@@ -157,50 +154,49 @@ export default function InventoryPage() {
             onClick={() => setActiveTab("categories")}
             className={cn(
               "flex items-center gap-2 px-4 py-1.5 rounded-lg text-sm font-medium transition-all",
-              activeTab === "categories" ? "bg-white text-[#2563EB] shadow-sm" : "text-slate-600 hover:text-slate-900"
+              activeTab === "categories" ? "bg-white text-[#2563EB] shadow-sm" : "text-slate-600"
             )}
           >
             <Tags className="w-4 h-4" />
             <span className="hidden sm:inline">Categories</span>
           </button>
-          <button 
-            onClick={() => setActiveTab("logs")}
-            className={cn(
-              "flex items-center gap-2 px-4 py-1.5 rounded-lg text-sm font-medium transition-all",
-              activeTab === "logs" ? "bg-white text-[#2563EB] shadow-sm" : "text-slate-600 hover:text-slate-900"
-            )}
-          >
-            <History className="w-4 h-4" />
-            <span className="hidden sm:inline">Logs</span>
-          </button>
         </div>
       </header>
 
       <main className="flex-1 p-4 max-w-7xl mx-auto w-full space-y-6">
-        {/* Stats Section */}
+        {/* Simple Stats Row */}
         <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-          <div className="bg-white p-6 rounded-2xl border border-slate-200 shadow-sm">
-            <p className="text-sm font-medium text-slate-500 mb-1">Total Assets</p>
-            <div className="flex items-baseline gap-2">
-              <span className="text-2xl font-bold text-slate-900">₱{stats.inventoryValue.toLocaleString()}</span>
-              <span className="text-xs text-slate-400">Cost Value</span>
+          <div className="bg-white p-5 rounded-2xl border border-slate-200 shadow-sm flex items-center gap-4">
+            <div className="w-12 h-12 rounded-xl bg-blue-50 flex items-center justify-center text-blue-600">
+              <Package className="w-6 h-6" />
+            </div>
+            <div>
+              <p className="text-xs font-bold text-slate-400 uppercase">Total Items</p>
+              <p className="text-2xl font-black text-slate-900">{stats.totalItems}</p>
             </div>
           </div>
-          <div className="bg-white p-6 rounded-2xl border border-slate-200 shadow-sm">
-            <p className="text-sm font-medium text-slate-500 mb-1">Inventory Count</p>
-            <div className="flex items-baseline gap-2">
-              <span className="text-2xl font-bold text-slate-900">{stats.totalItems}</span>
-              <span className="text-xs text-slate-400">SKUs</span>
+          <div className="bg-white p-5 rounded-2xl border border-slate-200 shadow-sm flex items-center gap-4">
+            <div className="w-12 h-12 rounded-xl bg-emerald-50 flex items-center justify-center text-emerald-600">
+              <TrendingUp className="w-6 h-6" />
+            </div>
+            <div>
+              <p className="text-xs font-bold text-slate-400 uppercase">Inventory Value</p>
+              <p className="text-2xl font-black text-slate-900">₱{stats.inventoryValue.toLocaleString()}</p>
             </div>
           </div>
           <div className={cn(
-            "p-6 rounded-2xl border shadow-sm transition-colors",
+            "p-5 rounded-2xl border shadow-sm flex items-center gap-4 transition-colors",
             stats.lowStockItems > 0 ? "bg-red-50 border-red-100" : "bg-white border-slate-200"
           )}>
-            <p className={cn("text-sm font-medium mb-1", stats.lowStockItems > 0 ? "text-red-600" : "text-slate-500")}>Low Stock Alerts</p>
-            <div className="flex items-baseline gap-2">
-              <span className={cn("text-2xl font-bold", stats.lowStockItems > 0 ? "text-red-700" : "text-slate-900")}>{stats.lowStockItems}</span>
-              {stats.lowStockItems > 0 && <span className="text-xs text-red-500 font-medium">Action Needed</span>}
+            <div className={cn(
+              "w-12 h-12 rounded-xl flex items-center justify-center",
+              stats.lowStockItems > 0 ? "bg-red-100 text-red-600" : "bg-slate-50 text-slate-400"
+            )}>
+              <AlertTriangle className="w-6 h-6" />
+            </div>
+            <div>
+              <p className={cn("text-xs font-bold uppercase", stats.lowStockItems > 0 ? "text-red-400" : "text-slate-400")}>Low Stock</p>
+              <p className={cn("text-2xl font-black", stats.lowStockItems > 0 ? "text-red-700" : "text-slate-900")}>{stats.lowStockItems}</p>
             </div>
           </div>
         </div>
@@ -211,15 +207,15 @@ export default function InventoryPage() {
               <div className="relative w-full sm:max-w-md">
                 <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400" />
                 <Input 
-                  placeholder="Search by name or SKU..." 
-                  className="pl-10 h-11 bg-white border-slate-200 rounded-xl focus:ring-2 focus:ring-[#2563EB]/20"
+                  placeholder="Search name or SKU..." 
+                  className="pl-10 h-11 bg-white border-slate-200 rounded-xl"
                   value={searchQuery}
                   onChange={(e) => setSearchQuery(e.target.value)}
                 />
               </div>
               <Button 
                 onClick={() => { setEditingProduct(null); setIsProductSheetOpen(true); }}
-                className="w-full sm:w-auto h-11 bg-[#0F172A] hover:bg-slate-800 text-white rounded-xl gap-2 shadow-sm"
+                className="w-full sm:w-auto h-11 bg-[#0F172A] hover:bg-slate-800 text-white rounded-xl gap-2 font-bold"
               >
                 <Plus className="w-5 h-5" />
                 Add Product
@@ -227,72 +223,71 @@ export default function InventoryPage() {
             </div>
 
             <div className="bg-white rounded-2xl border border-slate-200 shadow-sm overflow-hidden overflow-x-auto">
-              <table className="w-full text-left min-w-[800px]">
-                <thead>
-                  <tr className="bg-slate-50/50 border-b border-slate-200">
-                    <th className="px-6 py-4 text-xs font-semibold text-slate-500 uppercase tracking-wider">Product Info</th>
-                    <th className="px-6 py-4 text-xs font-semibold text-slate-500 uppercase tracking-wider">Category</th>
-                    <th className="px-6 py-4 text-xs font-semibold text-slate-500 uppercase tracking-wider text-right">Cost / Price</th>
-                    <th className="px-6 py-4 text-xs font-semibold text-slate-500 uppercase tracking-wider text-center">Stock</th>
-                    <th className="px-6 py-4 text-xs font-semibold text-slate-500 uppercase tracking-wider text-right">Value</th>
-                    <th className="px-6 py-4 text-xs font-semibold text-slate-500 uppercase tracking-wider"></th>
+              <table className="w-full text-left min-w-[900px]">
+                <thead className="bg-slate-50/50 border-b border-slate-200">
+                  <tr>
+                    <th className="px-6 py-4 text-[10px] font-black text-slate-400 uppercase tracking-widest">SKU / Name</th>
+                    <th className="px-6 py-4 text-[10px] font-black text-slate-400 uppercase tracking-widest">Category</th>
+                    <th className="px-6 py-4 text-[10px] font-black text-slate-400 uppercase tracking-widest text-right">Cost</th>
+                    <th className="px-6 py-4 text-[10px] font-black text-slate-400 uppercase tracking-widest text-right">Price</th>
+                    <th className="px-6 py-4 text-[10px] font-black text-slate-400 uppercase tracking-widest text-center">Stock</th>
+                    <th className="px-6 py-4 text-[10px] font-black text-slate-400 uppercase tracking-widest text-right">Value</th>
+                    <th className="px-6 py-4"></th>
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-slate-100">
                   {filteredProducts.map((product) => (
-                    <tr key={product.id} className="hover:bg-slate-50/50 transition-colors group">
+                    <tr key={product.id} className="hover:bg-slate-50/50 transition-colors">
                       <td className="px-6 py-4">
                         <div className="flex items-center gap-3">
                           <div className="w-10 h-10 rounded-lg bg-slate-100 flex items-center justify-center text-xl shadow-inner border border-slate-200">
                             {product.emoji || "📦"}
                           </div>
                           <div>
-                            <div className="font-semibold text-slate-900 leading-none mb-1">{product.name}</div>
-                            <div className="text-[10px] font-mono text-slate-400 tracking-tight">{product.sku || "#NO-SKU"}</div>
+                            <div className="text-[10px] font-mono text-blue-600 font-bold uppercase tracking-tight">{product.sku || "NO-SKU"}</div>
+                            <div className="font-bold text-slate-900 leading-none">{product.name}</div>
                           </div>
                         </div>
                       </td>
                       <td className="px-6 py-4">
-                        <Badge variant="outline" className="font-medium bg-slate-50 border-slate-200 text-slate-600">
+                        <Badge variant="outline" className="font-bold bg-slate-50 border-slate-200 text-slate-500 rounded-lg px-2 py-0.5">
                           {product.category}
                         </Badge>
                       </td>
-                      <td className="px-6 py-4 text-right">
-                        <div className="text-sm font-semibold text-slate-900">₱{product.price.toLocaleString()}</div>
-                        <div className="text-[11px] text-slate-400">Cost: ₱{product.cost.toLocaleString()}</div>
-                      </td>
+                      <td className="px-6 py-4 text-right font-medium text-slate-500">₱{product.cost.toLocaleString()}</td>
+                      <td className="px-6 py-4 text-right font-black text-slate-900">₱{product.price.toLocaleString()}</td>
                       <td className="px-6 py-4">
                         <div className="flex flex-col items-center gap-1.5">
                           <span className={cn(
-                            "text-sm font-bold",
-                            product.stock < 20 ? "text-red-600" : "text-slate-900"
+                            "text-xs font-black",
+                            product.stock < 10 ? "text-red-600" : "text-slate-900"
                           )}>{product.stock}</span>
-                          <div className="w-24 h-1.5 bg-slate-100 rounded-full overflow-hidden border border-slate-200/50">
+                          <div className="w-20 h-1.5 bg-slate-100 rounded-full overflow-hidden border border-slate-200/50">
                             <div 
                               className={cn(
                                 "h-full transition-all duration-500",
-                                product.stock < 20 ? "bg-red-500" : "bg-emerald-500"
+                                product.stock < 10 ? "bg-red-500" : "bg-emerald-500"
                               )}
-                              style={{ width: `${Math.min(100, (product.stock / 200) * 100)}%` }}
+                              style={{ width: `${Math.min(100, (product.stock / 100) * 100)}%` }}
                             />
                           </div>
                         </div>
                       </td>
-                      <td className="px-6 py-4 text-right font-bold text-slate-900">
+                      <td className="px-6 py-4 text-right font-black text-blue-600">
                         ₱{(product.stock * product.cost).toLocaleString()}
                       </td>
                       <td className="px-6 py-4 text-right">
                         <DropdownMenu>
                           <DropdownMenuTrigger asChild>
-                            <Button variant="ghost" size="icon" className="rounded-lg hover:bg-slate-100">
+                            <Button variant="ghost" size="icon" className="rounded-lg">
                               <MoreVertical className="w-4 h-4 text-slate-400" />
                             </Button>
                           </DropdownMenuTrigger>
                           <DropdownMenuContent align="end" className="w-40 rounded-xl">
-                            <DropdownMenuItem onClick={() => { setEditingProduct(product); setIsProductSheetOpen(true); }} className="gap-2">
+                            <DropdownMenuItem onClick={() => { setEditingProduct(product); setIsProductSheetOpen(true); }} className="gap-2 font-bold">
                               <Edit className="w-4 h-4" /> Edit
                             </DropdownMenuItem>
-                            <DropdownMenuItem onClick={() => setProducts(prev => prev.filter(p => p.id !== product.id))} className="gap-2 text-red-600">
+                            <DropdownMenuItem onClick={() => setProducts(prev => prev.filter(p => p.id !== product.id))} className="gap-2 text-red-600 font-bold">
                               <Trash2 className="w-4 h-4" /> Delete
                             </DropdownMenuItem>
                           </DropdownMenuContent>
@@ -309,59 +304,47 @@ export default function InventoryPage() {
         {activeTab === "categories" && (
           <div className="space-y-4">
             <div className="flex items-center justify-between">
-              <h2 className="text-lg font-bold text-slate-900">All Categories</h2>
+              <h2 className="text-sm font-black text-slate-900 uppercase tracking-widest">Category Studio</h2>
               <Button 
                 onClick={() => { setEditingCategory(null); setIsCategorySheetOpen(true); }}
-                className="h-10 bg-[#2563EB] hover:bg-blue-700 text-white rounded-xl gap-2 shadow-sm"
+                className="h-10 bg-[#2563EB] hover:bg-blue-700 text-white rounded-xl gap-2 font-bold shadow-lg shadow-blue-500/20"
               >
                 <Plus className="w-4 h-4" />
-                Add Category
+                New Category
               </Button>
             </div>
 
-            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
+            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4">
               {categories.map((cat) => (
                 <div key={cat.id} className="bg-white p-5 rounded-2xl border border-slate-200 shadow-sm hover:shadow-md transition-all group relative overflow-hidden">
                   <div 
-                    className="absolute top-0 right-0 w-24 h-24 -mr-8 -mt-8 opacity-5 rounded-full"
+                    className="absolute top-0 right-0 w-20 h-20 -mr-6 -mt-6 opacity-5 rounded-full"
                     style={{ backgroundColor: cat.color }}
                   />
-                  <div className="flex items-start justify-between relative">
+                  <div className="flex items-center justify-between relative">
                     <div className="flex items-center gap-4">
                       <div 
-                        className="w-14 h-14 rounded-xl flex items-center justify-center text-3xl shadow-sm"
-                        style={{ backgroundColor: `${cat.color}15`, color: cat.color }}
+                        className="w-14 h-14 rounded-2xl flex items-center justify-center text-3xl shadow-sm border"
+                        style={{ backgroundColor: `${cat.color}15`, color: cat.color, borderColor: `${cat.color}30` }}
                       >
                         {cat.emoji}
                       </div>
                       <div>
-                        <h3 className="font-bold text-slate-900 text-lg">{cat.name}</h3>
-                        <p className="text-sm text-slate-500 font-medium">{products.filter(p => p.categoryId === cat.id).length} Products</p>
+                        <h3 className="font-black text-slate-900 text-base uppercase tracking-tight">{cat.name}</h3>
+                        <p className="text-[10px] text-slate-400 font-bold uppercase">{products.filter(p => p.categoryId === cat.id).length} Products</p>
                       </div>
                     </div>
                     <div className="flex items-center gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
-                      <Button variant="ghost" size="icon" onClick={() => { setEditingCategory(cat); setIsCategorySheetOpen(true); }} className="h-8 w-8 rounded-lg hover:bg-slate-100">
+                      <Button variant="ghost" size="icon" onClick={() => { setEditingCategory(cat); setIsCategorySheetOpen(true); }} className="h-8 w-8 rounded-lg">
                         <Edit className="w-4 h-4 text-slate-400" />
                       </Button>
-                      <Button variant="ghost" size="icon" onClick={() => handleDeleteCategory(cat.id)} className="h-8 w-8 rounded-lg hover:bg-red-50 hover:text-red-600">
-                        <Trash2 className="w-4 h-4 text-slate-400" />
+                      <Button variant="ghost" size="icon" onClick={() => setCategories(prev => prev.filter(c => c.id !== cat.id))} className="h-8 w-8 rounded-lg hover:text-red-600">
+                        <Trash2 className="w-4 h-4" />
                       </Button>
                     </div>
                   </div>
                 </div>
               ))}
-            </div>
-          </div>
-        )}
-
-        {activeTab === "logs" && (
-          <div className="bg-white rounded-2xl border border-slate-200 p-8 flex flex-col items-center justify-center text-center space-y-4 shadow-sm">
-            <div className="w-16 h-16 bg-slate-50 rounded-full flex items-center justify-center border border-slate-100">
-              <History className="w-8 h-8 text-slate-300" />
-            </div>
-            <div>
-              <h3 className="text-lg font-bold text-slate-900">Audit History</h3>
-              <p className="text-slate-500 max-w-sm">Detailed stock movements and modification logs will appear here as you manage your inventory.</p>
             </div>
           </div>
         )}
@@ -371,80 +354,77 @@ export default function InventoryPage() {
       <Sheet open={isProductSheetOpen} onOpenChange={setIsProductSheetOpen}>
         <SheetContent className="w-full sm:max-w-md bg-white border-l border-slate-200 p-0 overflow-y-auto">
           <form onSubmit={handleSaveProduct} className="flex flex-col h-full">
-            <div className="p-6 border-b border-slate-100">
+            <div className="p-6 border-b border-slate-100 bg-slate-50/50">
               <SheetHeader>
-                <SheetTitle className="text-2xl font-bold text-slate-900">
+                <SheetTitle className="text-xl font-black text-slate-900 uppercase tracking-widest">
                   {editingProduct ? "Edit Product" : "New Product"}
                 </SheetTitle>
-                <SheetDescription>Enter product details below</SheetDescription>
+                <SheetDescription className="font-bold text-slate-500">Configure your listing details below</SheetDescription>
               </SheetHeader>
             </div>
 
             <div className="flex-1 p-6 space-y-6">
-              <div className="space-y-4">
-                <div className="grid grid-cols-4 gap-4 items-end">
-                  <div className="col-span-1">
-                    <label className="text-xs font-bold text-slate-400 uppercase mb-1.5 block">Icon</label>
-                    <Input name="emoji" defaultValue={editingProduct?.emoji || "📦"} className="text-center text-2xl h-11 bg-slate-50 border-slate-200 rounded-xl" />
-                  </div>
-                  <div className="col-span-3">
-                    <label className="text-xs font-bold text-slate-400 uppercase mb-1.5 block">Product Name</label>
-                    <Input name="name" required defaultValue={editingProduct?.name} placeholder="e.g. Arabica Roast" className="h-11 bg-slate-50 border-slate-200 rounded-xl" />
-                  </div>
+              <div className="grid grid-cols-4 gap-4 items-end">
+                <div className="col-span-1">
+                  <label className="text-[10px] font-black text-slate-400 uppercase mb-1.5 block">Icon</label>
+                  <Input name="emoji" defaultValue={editingProduct?.emoji || "📦"} className="text-center text-2xl h-12 bg-slate-50 border-slate-200 rounded-xl" />
                 </div>
-
-                <div>
-                  <label className="text-xs font-bold text-slate-400 uppercase mb-1.5 block">Category</label>
-                  <select 
-                    name="categoryId" 
-                    defaultValue={editingProduct?.categoryId}
-                    className="w-full h-11 bg-slate-50 border border-slate-200 rounded-xl px-4 text-sm font-medium focus:outline-none focus:ring-2 focus:ring-[#2563EB]/10 transition-all"
-                  >
-                    <option value="">Uncategorized</option>
-                    {categories.map(cat => (
-                      <option key={cat.id} value={cat.id}>{cat.name}</option>
-                    ))}
-                  </select>
+                <div className="col-span-3">
+                  <label className="text-[10px] font-black text-slate-400 uppercase mb-1.5 block">Product Name</label>
+                  <Input name="name" required defaultValue={editingProduct?.name} placeholder="e.g. Arabica Roast" className="h-12 bg-slate-50 border-slate-200 rounded-xl font-bold" />
                 </div>
+              </div>
 
+              <div>
+                <label className="text-[10px] font-black text-slate-400 uppercase mb-1.5 block">Category</label>
+                <select 
+                  name="categoryId" 
+                  defaultValue={editingProduct?.categoryId}
+                  className="w-full h-12 bg-slate-50 border border-slate-200 rounded-xl px-4 text-sm font-bold focus:outline-none focus:ring-2 focus:ring-[#2563EB]/10"
+                >
+                  <option value="">Uncategorized</option>
+                  {categories.map(cat => (
+                    <option key={cat.id} value={cat.id}>{cat.name}</option>
+                  ))}
+                </select>
+              </div>
+
+              <div className="relative">
+                <label className="text-[10px] font-black text-slate-400 uppercase mb-1.5 block">SKU / BARCODE</label>
                 <div className="relative">
-                  <label className="text-xs font-bold text-slate-400 uppercase mb-1.5 block">SKU / ID</label>
-                  <Input name="sku" defaultValue={editingProduct?.sku} placeholder="e.g. CF-001" className="h-11 bg-slate-50 border-slate-200 rounded-xl font-mono uppercase" />
-                  <button type="button" className="absolute right-3 bottom-2.5 p-1 text-slate-400 hover:text-[#2563EB] transition-colors">
-                    <RefreshCw className="w-4 h-4" />
-                  </button>
+                  <Input name="sku" defaultValue={editingProduct?.sku} placeholder="Auto-generated" className="h-12 bg-slate-50 border-slate-200 rounded-xl font-mono uppercase font-bold" />
                 </div>
+              </div>
 
-                <div className="grid grid-cols-2 gap-4">
-                  <div>
-                    <label className="text-xs font-bold text-slate-400 uppercase mb-1.5 block">Cost (Capital)</label>
-                    <div className="relative">
-                      <span className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400 font-medium">₱</span>
-                      <Input name="cost" required type="number" step="0.01" defaultValue={editingProduct?.cost} className="pl-8 h-11 bg-slate-50 border-slate-200 rounded-xl" />
-                    </div>
-                  </div>
-                  <div>
-                    <label className="text-xs font-bold text-slate-400 uppercase mb-1.5 block">Price (Sell)</label>
-                    <div className="relative">
-                      <span className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400 font-medium">₱</span>
-                      <Input name="price" required type="number" step="0.01" defaultValue={editingProduct?.price} className="pl-8 h-11 bg-slate-50 border-slate-200 rounded-xl font-bold" />
-                    </div>
-                  </div>
-                </div>
-
+              <div className="grid grid-cols-2 gap-4">
                 <div>
-                  <label className="text-xs font-bold text-slate-400 uppercase mb-1.5 block">Initial Stock</label>
-                  <Input name="stock" required type="number" defaultValue={editingProduct?.stock || 0} className="h-11 bg-slate-50 border-slate-200 rounded-xl" />
+                  <label className="text-[10px] font-black text-slate-400 uppercase mb-1.5 block">Cost (PHP)</label>
+                  <div className="relative">
+                    <span className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400 font-bold">₱</span>
+                    <Input name="cost" required type="number" step="0.01" defaultValue={editingProduct?.cost} className="pl-8 h-12 bg-slate-50 border-slate-200 rounded-xl font-bold text-slate-600" />
+                  </div>
                 </div>
+                <div>
+                  <label className="text-[10px] font-black text-slate-400 uppercase mb-1.5 block">Price (PHP)</label>
+                  <div className="relative">
+                    <span className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400 font-bold">₱</span>
+                    <Input name="price" required type="number" step="0.01" defaultValue={editingProduct?.price} className="pl-8 h-12 bg-slate-50 border-slate-200 rounded-xl font-black text-blue-600" />
+                  </div>
+                </div>
+              </div>
+
+              <div>
+                <label className="text-[10px] font-black text-slate-400 uppercase mb-1.5 block">Initial Stock</label>
+                <Input name="stock" required type="number" defaultValue={editingProduct?.stock || 0} className="h-12 bg-slate-50 border-slate-200 rounded-xl font-bold" />
               </div>
             </div>
 
             <div className="p-6 bg-slate-50 border-t border-slate-200 flex gap-3">
-              <Button type="button" variant="outline" onClick={() => setIsProductSheetOpen(false)} className="flex-1 rounded-xl h-11 border-slate-200 font-semibold">
+              <Button type="button" variant="outline" onClick={() => setIsProductSheetOpen(false)} className="flex-1 rounded-xl h-12 border-slate-200 font-bold">
                 Cancel
               </Button>
-              <Button type="submit" className="flex-[2] rounded-xl h-11 bg-[#2563EB] hover:bg-blue-700 text-white font-bold shadow-lg shadow-blue-500/20">
-                {editingProduct ? "Update Product" : "Save Product"}
+              <Button type="submit" className="flex-[2] rounded-xl h-12 bg-[#2563EB] hover:bg-blue-700 text-white font-black shadow-lg shadow-blue-500/20">
+                {editingProduct ? "UPDATE PRODUCT" : "SAVE PRODUCT"}
               </Button>
             </div>
           </form>
@@ -455,69 +435,57 @@ export default function InventoryPage() {
       <Sheet open={isCategorySheetOpen} onOpenChange={setIsCategorySheetOpen}>
         <SheetContent className="w-full sm:max-w-md bg-white border-l border-slate-200 p-0 overflow-y-auto">
           <form onSubmit={handleSaveCategory} className="flex flex-col h-full">
-            <div className="p-6 border-b border-slate-100">
+            <div className="p-6 border-b border-slate-100 bg-slate-50/50">
               <SheetHeader>
-                <SheetTitle className="text-2xl font-bold text-slate-900">
+                <SheetTitle className="text-xl font-black text-slate-900 uppercase tracking-widest">
                   {editingCategory ? "Edit Category" : "New Category"}
                 </SheetTitle>
-                <SheetDescription>Configure your product classification</SheetDescription>
+                <SheetDescription className="font-bold text-slate-500">Visual hotkey for your POS terminal</SheetDescription>
               </SheetHeader>
             </div>
 
             <div className="flex-1 p-6 space-y-8">
-              <div className="space-y-6">
-                <div className="grid grid-cols-4 gap-4 items-end">
-                  <div className="col-span-1">
-                    <label className="text-xs font-bold text-slate-400 uppercase mb-1.5 block">Emoji</label>
-                    <Input name="emoji" required defaultValue={editingCategory?.emoji || "📁"} className="text-center text-2xl h-14 bg-slate-50 border-slate-200 rounded-xl" />
-                  </div>
-                  <div className="col-span-3">
-                    <label className="text-xs font-bold text-slate-400 uppercase mb-1.5 block">Category Name</label>
-                    <Input name="name" required defaultValue={editingCategory?.name} placeholder="e.g. Hot Drinks" className="h-14 bg-slate-50 border-slate-200 rounded-xl text-lg font-bold" />
-                  </div>
+              <div className="grid grid-cols-4 gap-4 items-end">
+                <div className="col-span-1">
+                  <label className="text-[10px] font-black text-slate-400 uppercase mb-1.5 block">Emoji</label>
+                  <Input name="emoji" required defaultValue={editingCategory?.emoji || "📁"} className="text-center text-3xl h-16 bg-slate-50 border-slate-200 rounded-2xl" />
                 </div>
-
-                <div>
-                  <label className="text-xs font-bold text-slate-400 uppercase mb-2 block flex items-center gap-2">
-                    <Palette className="w-3.5 h-3.5" /> Tile Theme Color
-                  </label>
-                  <div className="grid grid-cols-6 gap-3">
-                    {["#2563EB", "#7C2D12", "#166534", "#92400E", "#7E22CE", "#BE123C", "#0F172A", "#F59E0B"].map(color => (
-                      <label key={color} className="relative cursor-pointer">
-                        <input 
-                          type="radio" 
-                          name="color" 
-                          value={color} 
-                          className="peer sr-only" 
-                          defaultChecked={editingCategory?.color === color || (!editingCategory && color === "#2563EB")} 
-                        />
-                        <div 
-                          className="w-full aspect-square rounded-xl border-4 border-transparent peer-checked:border-slate-200 shadow-sm transition-all"
-                          style={{ backgroundColor: color }}
-                        />
-                        <div className="absolute inset-0 flex items-center justify-center opacity-0 peer-checked:opacity-100">
-                          <div className="w-2 h-2 bg-white rounded-full" />
-                        </div>
-                      </label>
-                    ))}
-                  </div>
+                <div className="col-span-3">
+                  <label className="text-[10px] font-black text-slate-400 uppercase mb-1.5 block">Category Name</label>
+                  <Input name="name" required defaultValue={editingCategory?.name} placeholder="e.g. Signature Lattes" className="h-16 bg-slate-50 border-slate-200 rounded-2xl text-lg font-black uppercase" />
                 </div>
+              </div>
 
-                <div className="bg-blue-50 p-5 rounded-2xl border border-blue-100 flex items-start gap-4">
-                  <AlertTriangle className="w-6 h-6 text-blue-600 shrink-0" />
-                  <p className="text-sm text-blue-800 leading-relaxed font-medium">
-                    Categories help cashiers find items faster in the POS screen. Use distinct colors for different product groups.
-                  </p>
+              <div>
+                <label className="text-[10px] font-black text-slate-400 uppercase mb-3 block flex items-center gap-2">
+                  <Palette className="w-3 h-3" /> Brand Color
+                </label>
+                <div className="grid grid-cols-6 gap-3">
+                  {["#2563EB", "#7C2D12", "#166534", "#92400E", "#7E22CE", "#BE123C", "#0F172A", "#F59E0B"].map(color => (
+                    <label key={color} className="relative cursor-pointer">
+                      <input 
+                        type="radio" 
+                        name="color" 
+                        value={color} 
+                        className="peer sr-only" 
+                        defaultChecked={editingCategory?.color === color || (!editingCategory && color === "#2563EB")} 
+                      />
+                      <div 
+                        className="w-full aspect-square rounded-xl border-4 border-transparent peer-checked:border-white shadow-sm ring-1 ring-slate-200 peer-checked:ring-2 peer-checked:ring-slate-900 transition-all"
+                        style={{ backgroundColor: color }}
+                      />
+                    </label>
+                  ))}
                 </div>
               </div>
             </div>
 
             <div className="p-6 bg-slate-50 border-t border-slate-200 flex gap-3">
-              <Button type="button" variant="outline" onClick={() => setIsCategorySheetOpen(false)} className="flex-1 rounded-xl h-12 border-slate-200 font-semibold">
+              <Button type="button" variant="outline" onClick={() => setIsCategorySheetOpen(false)} className="flex-1 rounded-xl h-12 border-slate-200 font-bold">
                 Cancel
               </Button>
-              <Button type="submit" className="flex-[2] rounded-xl h-12 bg-[#0F172A] hover:bg-slate-800 text-white font-bold shadow-lg shadow-slate-900/20">
-                {editingCategory ? "Update Category" : "Create Category"}
+              <Button type="submit" className="flex-[2] rounded-xl h-12 bg-[#0F172A] hover:bg-slate-800 text-white font-black shadow-lg shadow-slate-900/20">
+                {editingCategory ? "UPDATE CATEGORY" : "SAVE CATEGORY"}
               </Button>
             </div>
           </form>
