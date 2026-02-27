@@ -16,8 +16,8 @@ export interface Product {
   cost: number;
   stock: number;
   categoryId: string;
-  image?: string;
-  imageUrl?: string;
+  image?: string; // Standardize on 'image'
+  imageUrl?: string; // Keep 'imageUrl' for compatibility
   minStock?: number;
 }
 

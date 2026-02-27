@@ -130,29 +130,41 @@ export default function POSPage() {
     setIsCheckoutOpen(false);
   };
 
-  // Product Tile Rendering logic
+  // Improved Product Image/Emoji Rendering
   const renderProductImage = (product: Product) => {
-    const category = categories.find(c => c.id === product.categoryId);
-    const categoryColor = category?.color || "#cbd5e1";
+    const displayImage = product.image || product.imageUrl;
+    const category = categories.find((c) => c.id === product.categoryId);
+    const categoryColor = category?.color || "#CBD5E1";
     const categoryEmoji = category?.emoji || "📦";
-    const imageUrl = product.image || product.imageUrl;
 
-    if (imageUrl) {
+    if (displayImage) {
       return (
-        <img 
-          src={imageUrl} 
-          alt={product.name}
-          className="w-full h-full object-cover group-hover:scale-110 transition-transform duration-500"
-          onError={(e) => {
-            (e.target as HTMLImageElement).src = `https://ui-avatars.com/api/?name=${encodeURIComponent(product.name)}&background=${categoryColor.replace('#', '')}&color=fff&size=128`;
-          }}
-        />
+        <div className="relative w-full h-full">
+          <img
+            src={displayImage}
+            alt={product.name}
+            className="w-full h-full object-cover transition-transform duration-300 group-hover:scale-110"
+            onError={(e) => {
+              // If image fails, hide it and show fallback
+              (e.target as HTMLImageElement).style.display = 'none';
+              const parent = (e.target as HTMLElement).parentElement;
+              if (parent) {
+                const fallback = document.createElement('div');
+                fallback.className = "w-full h-full flex items-center justify-center text-3xl transition-colors duration-300";
+                fallback.style.backgroundColor = `${categoryColor}20`;
+                fallback.style.color = categoryColor;
+                fallback.innerText = categoryEmoji;
+                parent.appendChild(fallback);
+              }
+            }}
+          />
+        </div>
       );
     }
 
     return (
       <div 
-        className="w-full h-full flex items-center justify-center text-3xl"
+        className="w-full h-full flex items-center justify-center text-3xl transition-colors duration-300"
         style={{ backgroundColor: `${categoryColor}20`, color: categoryColor }}
       >
         {categoryEmoji}
