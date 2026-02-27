@@ -43,12 +43,13 @@ export interface StoreSettings {
   storeName: string;
   address: string;
   phone: string;
-  taxRate: number;
-  currency: string;
+  taxRate?: number;
+  currency?: string;
   receiptFooter: string;
   lowStockThreshold: number;
   autoPrintReceipt: boolean;
   enableVat: boolean;
   subscriptionTier: SubscriptionTier;
   monthlyTransactionCount: number;
+  storeLogo?: string;
 }

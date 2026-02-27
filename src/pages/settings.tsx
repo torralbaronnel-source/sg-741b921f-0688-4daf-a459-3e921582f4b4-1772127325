@@ -10,7 +10,13 @@ import {
   ArrowLeft,
   CreditCard,
   History,
-  Info
+  Info,
+  ImagePlus,
+  Save,
+  LogOut,
+  Camera,
+  Badge,
+  UploadCloud
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -22,51 +28,76 @@ import { useToast } from "@/hooks/use-toast";
 import Link from "next/link";
 import type { StoreSettings, SubscriptionTier } from "@/types/pos";
 
-const DEFAULT_SETTINGS: StoreSettings = {
-  storeName: "PocketPOS Coffee",
-  address: "123 Mabini St, Manila",
-  phone: "09123456789",
-  taxRate: 12,
-  currency: "PHP",
-  receiptFooter: "Thank you for your purchase!",
-  lowStockThreshold: 5,
+const TRANSACTION_LIMIT = 100;
+
+const INITIAL_SETTINGS: StoreSettings = {
+  storeName: "PocketPOS PH",
+  address: "Metro Manila, Philippines",
+  phone: "+63 900 000 0000",
+  receiptFooter: "Salamat sa pagtangkilik!",
+  lowStockThreshold: 10,
   autoPrintReceipt: true,
   enableVat: true,
   subscriptionTier: "FREE",
-  monthlyTransactionCount: 124,
+  monthlyTransactionCount: 0,
 };
 
-const TRANSACTION_LIMIT = 500;
-
 export default function SettingsPage() {
-  const [settings, setSettings] = useState<StoreSettings>(DEFAULT_SETTINGS);
+  const [settings, setSettings] = useState<StoreSettings>(INITIAL_SETTINGS);
+  const [isLoaded, setIsLoaded] = useState(false);
   const [isSaving, setIsSaving] = useState(false);
   const { toast } = useToast();
 
-  useEffect(() => {
-    const saved = localStorage.getItem("pocketpos_settings");
-    if (saved) {
-      setSettings(JSON.parse(saved));
+  const handleLogoUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+
+    // Limit to 1MB to prevent localStorage strain
+    if (file.size > 1024 * 1024) {
+      alert("Logo is too large. Please use an image under 1MB.");
+      return;
     }
+
+    const reader = new FileReader();
+    reader.onloadend = () => {
+      const base64String = reader.result as string;
+      if (settings) {
+        const updatedSettings = { ...settings, storeLogo: base64String };
+        setSettings(updatedSettings);
+        localStorage.setItem("pocketpos_settings", JSON.stringify(updatedSettings));
+      }
+    };
+    reader.readAsDataURL(file);
+  };
+
+  const removeLogo = () => {
+    if (settings) {
+      const updatedSettings = { ...settings, storeLogo: undefined };
+      setSettings(updatedSettings);
+      localStorage.setItem("pocketpos_settings", JSON.stringify(updatedSettings));
+    }
+  };
+
+  useEffect(() => {
+    const savedSettings = localStorage.getItem("pos_settings");
+    if (savedSettings) {
+      setSettings(JSON.parse(savedSettings));
+    }
+    setIsLoaded(true);
   }, []);
 
   const handleSave = () => {
-    setIsSaving(true);
-    setTimeout(() => {
-      localStorage.setItem("pocketpos_settings", JSON.stringify(settings));
-      setIsSaving(false);
-      toast({
-        title: "Settings Saved",
-        description: "Your business configuration has been updated.",
-      });
-    }, 600);
+    localStorage.setItem("pos_settings", JSON.stringify(settings));
+    alert("Settings saved successfully!");
   };
 
   const updateSetting = (key: keyof StoreSettings, value: any) => {
     setSettings(prev => ({ ...prev, [key]: value }));
   };
 
-  const usagePercent = (settings.monthlyTransactionCount / TRANSACTION_LIMIT) * 100;
+  const usagePercent = settings ? Math.min((settings.monthlyTransactionCount / TRANSACTION_LIMIT) * 100, 100) : 0;
+
+  if (!isLoaded) return null;
 
   return (
     <div className="min-h-screen bg-[#F8FAFC] pb-24 font-sans">
@@ -143,6 +174,42 @@ export default function SettingsPage() {
           </div>
           <Card className="border-none shadow-sm rounded-2xl bg-white">
             <CardContent className="p-4 space-y-4">
+              <div className="flex items-center gap-4 p-4 rounded-2xl bg-slate-50 border border-slate-100 mb-6">
+                <div className="relative group">
+                  <div className="w-20 h-20 rounded-full bg-white border-2 border-dashed border-slate-200 flex items-center justify-center overflow-hidden shrink-0">
+                    {settings?.storeLogo ? (
+                      <img src={settings.storeLogo} alt="Logo" className="w-full h-full object-cover" />
+                    ) : (
+                      <Store className="w-8 h-8 text-slate-300" />
+                    )}
+                  </div>
+                  {settings?.storeLogo && (
+                    <button 
+                      onClick={removeLogo}
+                      className="absolute -top-1 -right-1 bg-red-500 text-white p-1 rounded-full shadow-lg hover:bg-red-600 transition-colors"
+                    >
+                      <Trash2 className="w-3 h-3" />
+                    </button>
+                  )}
+                </div>
+                <div className="flex-1">
+                  <Label className="text-sm font-semibold text-slate-800 block mb-1">Store Logo</Label>
+                  <p className="text-xs text-slate-500 mb-3">Square PNG or JPG (Max 1MB)</p>
+                  <div className="relative">
+                    <input 
+                      type="file" 
+                      accept="image/*" 
+                      onChange={handleLogoUpload}
+                      className="absolute inset-0 opacity-0 cursor-pointer w-full h-full z-10"
+                    />
+                    <Button variant="outline" size="sm" className="w-full border-slate-200 bg-white text-slate-700 font-medium">
+                      <UploadCloud className="w-3.5 h-3.5 mr-2" />
+                      {settings?.storeLogo ? "Change Logo" : "Upload Logo"}
+                    </Button>
+                  </div>
+                </div>
+              </div>
+
               <div className="space-y-2">
                 <Label className="text-xs font-bold text-slate-500 ml-1">Store Name</Label>
                 <Input 
@@ -245,13 +312,5 @@ export default function SettingsPage() {
         <Link href="/settings" className="p-2 text-blue-600 bg-blue-50 rounded-xl"><ShieldCheck className="w-6 h-6" /></Link>
       </nav>
     </div>
-  );
-}
-
-function Badge({ children, className }: { children: React.ReactNode, className?: string }) {
-  return (
-    <span className={`text-[10px] font-black uppercase tracking-tighter px-2 py-0.5 rounded-full ${className}`}>
-      {children}
-    </span>
   );
 }
